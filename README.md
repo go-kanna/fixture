@@ -176,19 +176,19 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 // Validating req reports Email, and nothing else.
 ```
 
-| Rule                                               | Value                                                                                            |
-|----------------------------------------------------|--------------------------------------------------------------------------------------------------|
-| `required`                                         | not the zero value: `true`, a pointer to a value, a slice of one element                         |
-| `min`, `max`, `len` on strings and slices          | a length within them: `password-001` for `min=12`, k elements for `min=k`                        |
-| `gt`, `gte`, `lt`, `lte`, `min`, `max` on integers | n, counted from the lowest value they allow and wrapping within the highest: `gt=0` → 1, 2, 3, … |
-| `gt`, `gte`, `lt`, `lte`, `min`, `max` on floats   | the lowest value they allow, or the highest without a lower bound: `gt=0` → `1`                  |
-| `eq`                                               | that value                                                                                       |
-| `ne`                                               | another value: where it rules out part of a range, the lowest value left                         |
-| `oneof=a b c`                                      | the first: `"admin"`                                                                             |
-| `eqfield=Field`                                    | the other field's value                                                                          |
-| `email`, `url`, `uuid`                             | that format                                                                                      |
-| `pattern=regexp`, which only kanna-validate has    | a string gofakeit generates from the expression                                                  |
-| `dive`                                             | the rules after it, for each element made                                                        |
+| Rule                                               | Value                                                                                          |
+|----------------------------------------------------|------------------------------------------------------------------------------------------------|
+| `required`                                         | not the zero value: `true`, a pointer to a value, a slice of one element                       |
+| `min`, `max`, `len` on strings and slices          | a length within them: `password-001` for `min=12`, k elements for `min=k`                      |
+| `gt`, `gte`, `lt`, `lte`, `min`, `max` on integers | n, counted from the lower bound, or from 1, and wrapping within the upper: `gt=0` → 1, 2, 3, … |
+| `gt`, `gte`, `lt`, `lte`, `min`, `max` on floats   | the lowest value they allow, or the highest without a lower bound: `gt=0` → `1`                |
+| `eq`                                               | that value                                                                                     |
+| `ne`                                               | another value: where it rules out part of a range, the lowest value left                       |
+| `oneof=a b c`                                      | the first: `"admin"`                                                                           |
+| `eqfield=Field`                                    | the other field's value                                                                        |
+| `email`, `url`, `uuid`                             | that format                                                                                    |
+| `pattern=regexp`, which only kanna-validate has    | a string gofakeit generates from the expression                                                |
+| `dive`                                             | the rules after it, for each element made                                                      |
 
 The rules are read to be satisfied, not checked: a rule kanna-fixture does not know is left to whatever validates the
 struct, and the value it gets may not pass it. A pattern is the one rule a number cannot meet, and gofakeit cannot
@@ -209,8 +209,9 @@ reads, for a field that wants a realistic value or a format the rules do not des
 
 A string field takes any template. A numeric field takes the numeric ones — `{number}`, `{intrange}`, `{uintrange}`,
 `{float32range}`, `{float64range}`, and `{price}` — with a range that fits it; a `time.Time` takes `{date}`, and a UUID
-`{uuid}`. A named type converts what its kind takes. The rules of the field's `validate` tag are not applied: the
-template is the value asked for.
+`{uuid}`. A number or a bool also takes a value as it stands, such as `fake:"42"`, and a named type converts what its
+kind takes. A pointer is set to point to the value, though it would otherwise stay nil. The rules of the field's
+`validate` tag are not applied: the template is the value asked for.
 
 A tagged field is made by a faker seeded with the fixture's number and its type, so the third User made has the same
 name on every run, whatever the fixtures of other types do. Its values are not unique: leave a unique column untagged.
