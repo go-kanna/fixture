@@ -170,3 +170,23 @@ func FillField(name string, t types.Type, tag string) string {
 	}
 	return filled.fields[0].value
 }
+
+// Emit finds the targets in pkgs and renders their fixtures into a file of the
+// package destName at destPath, whose other files declare declared. It spells
+// each diagnostic as diag.Diag.String does.
+func Emit(fset *token.FileSet, pkgs []*packages.Package, destPath, destName string,
+	declared map[string]token.Position,
+) ([]byte, []string) {
+	found, diags := targets(fset, scan.Structs(pkgs), nil)
+	f, ds := emit(found, destPath, destName, declared)
+
+	var msgs []string
+	for _, d := range append(diags, ds...) {
+		msgs = append(msgs, d.String())
+	}
+	src, err := f.Bytes()
+	if err != nil {
+		msgs = append(msgs, err.Error())
+	}
+	return src, msgs
+}

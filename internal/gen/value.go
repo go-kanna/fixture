@@ -33,7 +33,9 @@ type expr struct {
 	// any field of its kind takes as it is.
 	typ types.Type
 
-	usesN, usesF bool
+	// usesN, usesF, and generates report whether it calls for the number of
+	// the fixture, its faker, and the helper calling Faker.Generate.
+	usesN, usesF, generates bool
 }
 
 // assignment sets field to value.
@@ -49,9 +51,9 @@ type filled struct {
 	// copies follow it, for an eqfield rule: x.Confirm = x.Password.
 	copies []assignment
 
-	// usesN and usesF report whether the values call for the number of the
-	// fixture and its faker.
-	usesN, usesF bool
+	// usesN, usesF, and generates report whether the values call for the
+	// number of the fixture, its faker, and the helper calling Faker.Generate.
+	usesN, usesF, generates bool
 }
 
 // filler works out the values of the fixtures of one generated file.
@@ -117,6 +119,7 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 		out.fields = append(out.fields, assignment{field: field.Name, value: e.text})
 		out.usesN = out.usesN || e.usesN
 		out.usesF = out.usesF || e.usesF
+		out.generates = out.generates || e.generates
 	}
 	return out, diags
 }
@@ -179,9 +182,10 @@ func (fl *filler) fake(fv fakeValue, t types.Type) expr {
 		return fl.convert(e, t)
 	default:
 		e := expr{
-			text:  fl.generate + "(" + fl.f + ", " + strconv.Quote(fv.template) + ")",
-			typ:   types.Typ[types.String],
-			usesF: true,
+			text:      fl.generate + "(" + fl.f + ", " + strconv.Quote(fv.template) + ")",
+			typ:       types.Typ[types.String],
+			usesF:     true,
+			generates: true,
 		}
 		return fl.convert(e, t)
 	}

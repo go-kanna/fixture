@@ -62,12 +62,12 @@ type Article struct {
 
 package fixture
 
-var articleSeq atomic.Int64
+var seqArticle atomic.Int64
 
 // Article returns a new model.Article with every field it can fill set, then
 // applies setters in order.
 func Article(setters ...func(*model.Article)) model.Article {
-	n := articleSeq.Add(1)
+	n := seqArticle.Add(1)
 	x := model.Article{
 		ID:     uuid.MustParse(fmt.Sprintf("00000000-0000-4000-8000-%012x", n)),
 		Slug:   fmt.Sprintf("slug-%d", n),
@@ -80,12 +80,12 @@ func Article(setters ...func(*model.Article)) model.Article {
 	return x
 }
 
-var userSeq atomic.Int64
+var seqUser atomic.Int64
 
 // User returns a new model.User with every field it can fill set, then
 // applies setters in order.
 func User(setters ...func(*model.User)) model.User {
-	n := userSeq.Add(1)
+	n := seqUser.Add(1)
 	f := gofakeit.NewFaker(rand.NewPCG(uint64(n), 0x5f2c8e0a9d4b7136), false)
 	x := model.User{
 		ID:        n,
