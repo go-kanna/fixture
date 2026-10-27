@@ -233,12 +233,13 @@ one by the next `go generate`.
 |------------------|-------------------------------------------|
 | `//kanna:ignore` | do not generate a fixture for this struct |
 
-`-exclude` does the same from the command line, for a package whose source you do not write, such as sqlc's or
-protoc's output. A name it lists that the package does not declare gets a warning.
+`-exclude` does the same from the command line, for a package whose source you do not write, such as the models sqlc
+generates. A name it lists that the package does not declare gets a warning.
 
 Skipped with a warning: a generic struct, for which a fixture has no type arguments to pick, and a struct that must not
-be copied, such as one holding a `sync.Mutex`, since a fixture returns a value. A misspelled directive also gets a
-warning, which would otherwise leave the struct with a fixture and say nothing:
+be copied, such as one holding a `sync.Mutex`, since a fixture returns a value. A protobuf message is one of these, as
+`go vet` would say of copying it. A misspelled directive also gets a warning, which would otherwise leave the struct
+with a fixture and say nothing:
 
 ```console
 ./model.go:3:1: warning: "//kanna:ignor" is not recognized as a directive
