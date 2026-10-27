@@ -1,6 +1,7 @@
 package gen
 
 import (
+	"errors"
 	"go/constant"
 	"go/token"
 	"go/types"
@@ -73,4 +74,31 @@ func Wants(tag string, t types.Type) []string {
 		lines[i] = strings.Join(parts, " ")
 	}
 	return lines
+}
+
+// Fake reads tag, a struct tag as written between backquotes, for a field of
+// type t. It spells what the fake tag asks for, such as "skip",
+// "fixed=\"123-4567\"", "Number(18, 65)", or "template={firstname}", or "" for
+// no fake tag, and the error, with its hint on a line of its own.
+func Fake(tag string, t types.Type) (string, string) {
+	v, ok, err := fakeOf(reflect.StructTag(tag), t)
+	if err != nil {
+		msg := err.Error()
+		if e, ok := errors.AsType[*tagError](err); ok && e.hint != "" {
+			msg += "\n  " + e.hint
+		}
+		return "", msg
+	}
+	switch {
+	case !ok:
+		return "", ""
+	case v.skip:
+		return "skip", ""
+	case v.fixed != "":
+		return "fixed=" + v.fixed, ""
+	case v.method != "":
+		return v.method + "(" + strings.Join(v.args, ", ") + ")", ""
+	default:
+		return "template=" + v.template, ""
+	}
 }
