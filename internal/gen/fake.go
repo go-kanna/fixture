@@ -236,9 +236,11 @@ func parseTemplate(s string) ([]call, error) {
 			return nil, e
 		}
 		if n := len(c.args(info)); n > len(info.Params) {
-			return nil, &tagError{
-				msg: fmt.Sprintf("fake tag %q: %s takes %d parameters, got %d", s, c.name, len(info.Params), n),
+			takes := fmt.Sprintf("%d parameters", len(info.Params))
+			if len(info.Params) == 0 {
+				takes = "no parameters"
 			}
+			return nil, &tagError{msg: fmt.Sprintf("fake tag %q: %s takes %s, got %d", s, c.name, takes, n)}
 		}
 		calls = append(calls, c)
 		rest = rest[end+1:]

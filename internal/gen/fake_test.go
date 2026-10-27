@@ -70,6 +70,12 @@ func TestFake(t *testing.T) {
 			wantErr: `fake tag "Hi {firstname": no } closes the { of {firstname`,
 		},
 		{
+			name:    "parameters to a function that takes none",
+			tag:     `fake:"{sentence:5}"`,
+			typ:     str,
+			wantErr: `fake tag "{sentence:5}": sentence takes no parameters, got 1`,
+		},
+		{
 			name:    "too many parameters",
 			tag:     `fake:"{number:1,2,3}"`,
 			typ:     str,
