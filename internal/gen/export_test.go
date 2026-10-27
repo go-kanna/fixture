@@ -190,3 +190,6 @@ func Emit(fset *token.FileSet, pkgs []*packages.Package, destPath, destName stri
 	}
 	return src, msgs
 }
+
+// ImportPath is importPath.
+var ImportPath = importPath
