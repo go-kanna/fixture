@@ -6,7 +6,7 @@ toolchain go1.26.9
 
 require (
 	github.com/brianvoe/gofakeit/v7 v7.18.0
-	github.com/go-kanna/internal v0.0.3-0.20261027074001-82b02fa19654
+	github.com/go-kanna/internal v0.0.3
 	golang.org/x/mod v0.42.0
 )
 
