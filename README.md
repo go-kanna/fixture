@@ -143,9 +143,9 @@ Then [the rules of its `validate` tag](#rules) adjust the value. Unexported fiel
 cannot set them from their own package.
 
 What the number feeds is unique per type, and names its field: `title-3` in a failure is the Title of the third Article
-made. What it does not feed — constants, bounds, bools — is the same whichever tests ran first, so a test behaves the
-same alone, in the whole run, and in parallel. The values built from n do move with the number of fixtures made before;
-a test that asserts on one sets it.
+made. What it does not feed — constants, the first of a `oneof`, bools — is the same whichever tests ran first, so a
+test behaves the same alone, in the whole run, and in parallel. The values built from n do move with the number of
+fixtures made before; a test that asserts on one sets it.
 
 The numbers count within one process. Test binaries that share a database each make their own `email-1@example.com`,
 so give each package a schema or a transaction of its own, or set the unique fields.
@@ -176,16 +176,19 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 // Validating req reports Email, and nothing else.
 ```
 
-| Rule                                                          | Value                                                                                            |
-|---------------------------------------------------------------|--------------------------------------------------------------------------------------------------|
-| `required`                                                    | not the zero value: `true`, a pointer to a value, a slice of one element                         |
-| `min`, `max`, `len` on strings and slices                     | a length within them: `password-001` for `min=12`, k elements for `min=k`                        |
-| `gt`, `gte`, `lt`, `lte`, `eq`, `ne`, `min`, `max` on numbers | the lowest value they allow, or the highest without a lower bound: `gte=18` → `18`, `gt=0` → `1` |
-| `oneof=a b c`                                                 | the first: `"admin"`                                                                             |
-| `eqfield=Field`                                               | the other field's value                                                                          |
-| `email`, `url`, `uuid`                                        | that format                                                                                      |
-| `pattern=regexp`, which only kanna-validate has               | a string gofakeit generates from the expression                                                  |
-| `dive`                                                        | the rules after it, for each element made                                                        |
+| Rule                                               | Value                                                                                            |
+|----------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| `required`                                         | not the zero value: `true`, a pointer to a value, a slice of one element                         |
+| `min`, `max`, `len` on strings and slices          | a length within them: `password-001` for `min=12`, k elements for `min=k`                        |
+| `gt`, `gte`, `lt`, `lte`, `min`, `max` on integers | n, counted from the lowest value they allow and wrapping within the highest: `gt=0` → 1, 2, 3, … |
+| `gt`, `gte`, `lt`, `lte`, `min`, `max` on floats   | the lowest value they allow, or the highest without a lower bound: `gt=0` → `1`                  |
+| `eq`                                               | that value                                                                                       |
+| `ne`                                               | another value: where it rules out part of a range, the lowest value left                         |
+| `oneof=a b c`                                      | the first: `"admin"`                                                                             |
+| `eqfield=Field`                                    | the other field's value                                                                          |
+| `email`, `url`, `uuid`                             | that format                                                                                      |
+| `pattern=regexp`, which only kanna-validate has    | a string gofakeit generates from the expression                                                  |
+| `dive`                                             | the rules after it, for each element made                                                        |
 
 The rules are read to be satisfied, not checked: a rule kanna-fixture does not know is left to whatever validates the
 struct, and the value it gets may not pass it. A pattern is the one rule a number cannot meet, and gofakeit cannot
