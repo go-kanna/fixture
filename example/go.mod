@@ -1,0 +1,17 @@
+module github.com/go-kanna/fixture/example
+
+go 1.27.0
+
+toolchain go1.27.3
+
+tool (
+	github.com/go-kanna/fixture/cmd/kanna-fixture
+	github.com/go-kanna/validate/cmd/kanna-validate
+)
+
+require (
+	github.com/brianvoe/gofakeit/v7 v7.18.0
+	github.com/go-kanna/validate v0.0.1
+	github.com/go-kanna/validated v0.0.2
+	github.com/google/uuid v1.6.0
+)
