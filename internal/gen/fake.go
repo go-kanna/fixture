@@ -26,9 +26,10 @@ type fakeValue struct {
 	fixed string
 
 	// method and args call a Faker method that returns the kind of the field,
-	// such as Number(18, 65).
+	// such as Number(18, 65). result is the kind a numeric one returns.
 	method string
 	args   []string
+	result types.BasicKind
 
 	// template is passed to Faker.Generate, for a string.
 	template string
@@ -162,7 +163,7 @@ func numeric(s string, c call, nc numericCall, b *types.Basic) (fakeValue, error
 			return fakeValue{}, &tagError{msg: fmt.Sprintf("fake tag %q: %s does not fit %s", s, arg, b)}
 		}
 	}
-	return fakeValue{method: nc.method, args: args}, nil
+	return fakeValue{method: nc.method, args: args, result: nc.result}, nil
 }
 
 // call is a function a template calls, such as {number:18,65}.

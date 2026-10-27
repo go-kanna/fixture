@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-kanna/internal/gofile"
 	"github.com/go-kanna/internal/packages"
 	"github.com/go-kanna/internal/scan"
 )
@@ -101,4 +102,71 @@ func Fake(tag string, t types.Type) (string, string) {
 	default:
 		return "template=" + v.template, ""
 	}
+}
+
+// Fill finds the targets in pkgs and works out the fixture of each, spelling
+// it, by the name of its struct, as a line per field it sets, such as
+// "Name: fmt.Sprintf(\"name-%d\", n)", then "Confirm = Password" for each copy,
+// then "uses n" and "uses f" when it does. Diagnostics are spelled as
+// diag.Diag.String does.
+func Fill(fset *token.FileSet, pkgs []*packages.Package) (map[string][]string, []string) {
+	found, diags := targets(fset, scan.Structs(pkgs), nil)
+	fl := &filler{
+		imports:  gofile.New("kanna-fixture", "example.com/fixture", "fixture"),
+		targets:  map[*types.TypeName]bool{},
+		generate: "mustGenerate",
+		n:        "n",
+		f:        "f",
+	}
+	for _, s := range found {
+		fl.targets[s.Named.Obj()] = true
+	}
+
+	spelled := make(map[string][]string, len(found))
+	for _, s := range found {
+		filled, ds := fl.fill(s)
+		diags = append(diags, ds...)
+		lines := []string{}
+		for _, a := range filled.fields {
+			lines = append(lines, a.field+": "+a.value)
+		}
+		for _, a := range filled.copies {
+			lines = append(lines, a.field+" = "+a.value)
+		}
+		if filled.usesN {
+			lines = append(lines, "uses n")
+		}
+		if filled.usesF {
+			lines = append(lines, "uses f")
+		}
+		spelled[s.Name] = lines
+	}
+	msgs := make([]string, len(diags))
+	for i, d := range diags {
+		msgs[i] = d.String()
+	}
+	return spelled, msgs
+}
+
+// FillField works out the value of a field of type t named name, with struct
+// tag tag, in a struct of its own.
+func FillField(name string, t types.Type, tag string) string {
+	owner := types.NewNamed(types.NewTypeName(0, types.NewPackage("example.com/model", "model"), "Owner", nil),
+		types.NewStruct(nil, nil), nil)
+	s := scan.Struct{
+		Name:   "Owner",
+		Named:  owner,
+		Fields: []scan.Field{{Name: name, Type: t, Tag: reflect.StructTag(tag), Exported: true}},
+	}
+	fl := &filler{
+		imports:  gofile.New("kanna-fixture", "example.com/fixture", "fixture"),
+		generate: "mustGenerate",
+		n:        "n",
+		f:        "f",
+	}
+	filled, _ := fl.fill(s)
+	if len(filled.fields) == 0 {
+		return ""
+	}
+	return filled.fields[0].value
 }
