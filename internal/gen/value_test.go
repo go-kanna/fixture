@@ -372,6 +372,59 @@ type Post struct {
 	}
 }
 
+// A type the fixtures cannot name from their own package leaves its field
+// zero, as an unexported field is, whatever the tags ask.
+func TestFill_Unnameable(t *testing.T) {
+	t.Parallel()
+
+	got, diags := fill(t, `package model
+
+type level int
+
+type lvl = level
+
+type home struct {
+	Street string
+}
+
+type hider interface {
+	hide()
+}
+
+//kanna:ignore
+type Box[T any] struct {
+	Value T
+}
+
+type Thing struct {
+	Name   string
+	Level  level
+	Alias  lvl
+	Faked  level                 `+"`"+`fake:"42"`+"`"+`
+	Home   *home                 `+"`"+`validate:"required"`+"`"+`
+	Homes  []home                `+"`"+`validate:"min=1"`+"`"+`
+	Places map[string]home       `+"`"+`validate:"required"`+"`"+`
+	Hooks  []func(chan level)    `+"`"+`validate:"min=1"`+"`"+`
+	Hidden []interface{ hide() } `+"`"+`validate:"min=1"`+"`"+`
+	Hiders []interface{ hider }  `+"`"+`validate:"min=1"`+"`"+`
+	Boxed  []Box[level]          `+"`"+`validate:"min=1"`+"`"+`
+	Spot   *struct{ x int }      `+"`"+`validate:"required"`+"`"+`
+	Place  *struct{ X int }      `+"`"+`validate:"required"`+"`"+`
+	Boxes  []Box[int]            `+"`"+`validate:"min=1"`+"`"+`
+}
+`)
+
+	checkFill(t, got, "Thing", []string{
+		`Name: fmt.Sprintf("name-%d", n)`,
+		"Place: new(struct{X int})",
+		"Boxes: make([]model.Box[int], 1)",
+		"uses n",
+	})
+	if len(diags) > 0 {
+		t.Errorf("diagnostics = %q, want none", diags)
+	}
+}
+
 func TestFillField_UUID(t *testing.T) {
 	t.Parallel()
 

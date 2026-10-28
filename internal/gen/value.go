@@ -79,7 +79,7 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 		diags []diag.Diag
 	)
 	for _, field := range s.Fields {
-		if !field.Exported {
+		if !field.Exported || !nameable(field.Type) {
 			continue
 		}
 		if other, ok := copied(s, field); ok {
@@ -487,6 +487,65 @@ func maxOf(b *types.Basic) int64 {
 func floatLiteral(v constant.Value) string {
 	f, _ := constant.Float64Val(v)
 	return strconv.FormatFloat(f, 'g', -1, 64)
+}
+
+// nameable reports whether a package other than the one declaring t can spell
+// it, as the fixtures spell a type they convert to, point to, or make. An
+// unexported type is known by its name only in its own package, and so is a
+// struct type written out with an unexported field.
+func nameable(t types.Type) bool {
+	switch u := t.(type) {
+	case *types.Named:
+		return nameableName(u.Obj(), u.TypeArgs())
+	case *types.Alias:
+		return nameableName(u.Obj(), u.TypeArgs())
+	case *types.Map:
+		return nameable(u.Key()) && nameable(u.Elem())
+	case interface{ Elem() types.Type }:
+		// A pointer, slice, array, or channel.
+		return nameable(u.Elem())
+	case *types.Struct:
+		for f := range u.Fields() {
+			if !f.Exported() || !nameable(f.Type()) {
+				return false
+			}
+		}
+	case *types.Signature:
+		return nameable(u.Params()) && nameable(u.Results())
+	case *types.Tuple:
+		for v := range u.Variables() {
+			if !nameable(v.Type()) {
+				return false
+			}
+		}
+	case *types.Interface:
+		for m := range u.ExplicitMethods() {
+			if !m.Exported() || !nameable(m.Type()) {
+				return false
+			}
+		}
+		for e := range u.EmbeddedTypes() {
+			if !nameable(e) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// nameableName reports whether other packages can spell the type obj names,
+// with the arguments args of an instance: it is exported, or declared in the
+// universe as error is, and so are they.
+func nameableName(obj *types.TypeName, args *types.TypeList) bool {
+	if obj.Pkg() != nil && !obj.Exported() {
+		return false
+	}
+	for a := range args.Types() {
+		if !nameable(a) {
+			return false
+		}
+	}
+	return true
 }
 
 // convert converts e to t where their types differ. An untyped constant needs

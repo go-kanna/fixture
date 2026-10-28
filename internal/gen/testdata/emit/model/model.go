@@ -69,6 +69,21 @@ type Empty struct {
 	hidden int
 }
 
+// Hidden has fields of types the fixtures cannot name from their own package,
+// which stay zero as unexported fields do, beside one they can.
+type Hidden struct {
+	Level level
+	Home  *home            `validate:"required"`
+	Spot  *struct{ x int } `validate:"required"`
+	Place *struct{ X int } `validate:"required"`
+}
+
+type level int
+
+type home struct {
+	Street string
+}
+
 // Internal gets no fixture.
 //
 //kanna:ignore

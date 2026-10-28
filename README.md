@@ -140,7 +140,8 @@ Every call takes the next number n of its type, starting at 1, and each field ta
 | a pointer, slice, map, interface, channel, func, array, or other struct | the zero value                                                          |
 
 Then [the rules of its `validate` tag](#rules) adjust the value. Unexported fields are left alone, since the fixtures
-cannot set them from their own package.
+cannot set them from their own package, and so are fields of a type they cannot name from there: an unexported type, or
+a struct type written out with an unexported field.
 
 What the number feeds is unique per type, and names its field: `title-3` in a failure is the Title of the third Article
 made. What it does not feed — constants, the first of a `oneof`, bools — is the same whichever tests ran first, so a
