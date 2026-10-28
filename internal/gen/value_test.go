@@ -184,6 +184,8 @@ type SignUp struct {
 	Anys     []any             `+"`"+`validate:"required"`+"`"+`
 	Meta     map[string]string `+"`"+`validate:"required"`+"`"+`
 	Again    string            `+"`"+`validate:"eqfield=Missing"`+"`"+`
+	Hits     int               `+"`"+`validate:"required,gte=0"`+"`"+`
+	Cost     float64           `+"`"+`validate:"required,gte=0"`+"`"+`
 }
 `)
 
@@ -218,6 +220,8 @@ type SignUp struct {
 		"Anys: make([]any, 1)",
 		"Meta: map[string]string{}",
 		`Again: fmt.Sprintf("again-%d", n)`,
+		"Hits: int(n)",
+		"Cost: 1",
 		"Confirm = Password",
 		"uses n",
 		"uses f",
