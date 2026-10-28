@@ -83,10 +83,6 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 		if !field.Exported || !nameable(field.Type) {
 			continue
 		}
-		if other, ok := copied(s, field); ok {
-			out.copies = append(out.copies, assignment{field: field.Name, value: other})
-			continue
-		}
 
 		fv, faked, err := fakeOf(field.Tag, field.Type)
 		if err != nil {
@@ -102,13 +98,16 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 			e  expr
 			ok bool
 		)
-		switch {
+		switch other, copies := copied(s, field); {
 		case faked && fv.skip:
 		case faked:
 			e, ok = fl.fake(fv, deref(field.Type)), true
 			if _, isPtr := field.Type.Underlying().(*types.Pointer); isPtr {
 				e = fl.pointer(e, deref(field.Type))
 			}
+		case copies:
+			out.copies = append(out.copies, assignment{field: field.Name, value: other})
+			continue
 		default:
 			wants := wantsOf(field.Tag, field.Type)
 			diags = append(diags, unkept(field, wants)...)

@@ -287,6 +287,8 @@ type Person struct {
 	Rate     *float64  `+"`"+`fake:"1.5"`+"`"+`
 	Ignored  string    `+"`"+`fake:"{zzzzzzzzzz}" validate:"required"`+"`"+`
 	Bad      int       `+"`"+`fake:"{email}"`+"`"+`
+	Again    string    `+"`"+`fake:"{lastname}" validate:"eqfield=Name"`+"`"+`
+	Twice    string    `+"`"+`fake:"{lastname" validate:"eqfield=Name"`+"`"+`
 }
 `)
 
@@ -303,6 +305,7 @@ type Person struct {
 		"Answer: new(42)",
 		`Label: new("x")`,
 		"Rate: new(1.5)",
+		`Again: mustGenerate(f, "{lastname}")`,
 		"uses f",
 	})
 
@@ -311,6 +314,7 @@ type Person struct {
 		"test.go:24:2: error: fake tag \"{email}\" cannot fill int (field Bad)\n" +
 			"  a number takes {number}, {intrange}, {uintrange}, {float32range}, {float64range}, {price}, " +
 			"or a number as it stands",
+		`test.go:26:2: error: fake tag "{lastname": no } closes the { of {lastname (field Twice)`,
 	}
 	if !slices.Equal(diags, want) {
 		t.Errorf("diagnostics = %q, want %q", diags, want)
