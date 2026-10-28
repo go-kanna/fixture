@@ -445,18 +445,18 @@ func unmatched(re *regexp.Regexp, w want) string {
 // taken modulo mod, when mod is not 0, where its digits would not fit.
 func numbered(name string, minLen, maxLen int) (string, int64) {
 	base := name + "-"
-	if maxLen >= 0 && len(base)+4 > maxLen {
+	if maxLen >= 0 && utf8.RuneCountInString(base)+4 > maxLen {
 		base = ""
 		if maxLen >= 6 {
-			base = name[:maxLen-5] + "-"
+			base = string([]rune(name)[:maxLen-5]) + "-"
 		}
 	}
 
 	var mod int64
-	if room := maxLen - len(base); maxLen >= 0 && room < 10 {
+	if room := maxLen - utf8.RuneCountInString(base); maxLen >= 0 && room < 10 {
 		mod = int64(math.Pow10(room))
 	}
-	if width := minLen - len(base); width > 1 {
+	if width := minLen - utf8.RuneCountInString(base); width > 1 {
 		return base + "%0" + strconv.Itoa(width) + "d", mod
 	}
 	return base + "%d", mod

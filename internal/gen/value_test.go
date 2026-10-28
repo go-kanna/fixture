@@ -190,6 +190,7 @@ type SignUp struct {
 	Small    float64           `+"`"+`validate:"lte=0.1234567"`+"`"+`
 	Tight    float64           `+"`"+`validate:"gt=1,lt=1.00001"`+"`"+`
 	Big      uint64            `+"`"+`validate:"gte=9223372036854775808"`+"`"+`
+	Ärger    string            `+"`"+`validate:"max=6"`+"`"+`
 	Word     string            `+"`"+`validate:"min=3,pattern=^[a-z]+$"`+"`"+`
 	Mail     string            `+"`"+`validate:"email,len=19"`+"`"+`
 	Site     string            `+"`"+`validate:"url,min=30"`+"`"+`
@@ -235,6 +236,7 @@ type SignUp struct {
 		"Small: 0.1234567",
 		"Tight: 1.000005",
 		"Big: uint64(n)",
+		`Ärger: fmt.Sprintf("ä-%d", n%10000)`,
 		`Word: fmt.Sprintf("word-%d", n)`,
 		`Mail: fmt.Sprintf("ma-%04d@example.com", n%10000)`,
 		`Site: fmt.Sprintf("https://example.com/site-%05d", n)`,
@@ -247,11 +249,11 @@ type SignUp struct {
 
 	want := []string{
 		"test.go:34:2: warning: values generated from the pattern do not match it; give the field a fake tag (field Code)",
-		"test.go:53:2: warning: values generated from the pattern do not fit within the length the rules set; " +
+		"test.go:54:2: warning: values generated from the pattern do not fit within the length the rules set; " +
 			"give the field a fake tag (field Word)",
-		"test.go:56:2: warning: a numbered email address does not fit within the length the rules set; " +
+		"test.go:57:2: warning: a numbered email address does not fit within the length the rules set; " +
 			"give the field a fake tag (field Contact)",
-		"test.go:57:2: warning: a UUID does not fit within the length the rules set; give the field a fake tag (field Ref)",
+		"test.go:58:2: warning: a UUID does not fit within the length the rules set; give the field a fake tag (field Ref)",
 	}
 	if !slices.Equal(diags, want) {
 		t.Errorf("diagnostics = %q, want %q", diags, want)
