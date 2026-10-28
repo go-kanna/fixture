@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"go/constant"
+	"go/token"
 	"go/types"
 	"math"
 	"reflect"
@@ -12,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/brianvoe/gofakeit/v7"
 	"github.com/go-kanna/internal/diag"
@@ -79,11 +81,7 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 		diags []diag.Diag
 	)
 	for _, field := range s.Fields {
-		if !field.Exported {
-			continue
-		}
-		if other, ok := copied(s, field); ok {
-			out.copies = append(out.copies, assignment{field: field.Name, value: other})
+		if !field.Exported || !nameable(field.Type) {
 			continue
 		}
 
@@ -101,16 +99,19 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 			e  expr
 			ok bool
 		)
-		switch {
+		switch other, copies := copied(s, field); {
 		case faked && fv.skip:
 		case faked:
 			e, ok = fl.fake(fv, deref(field.Type)), true
 			if _, isPtr := field.Type.Underlying().(*types.Pointer); isPtr {
 				e = fl.pointer(e, deref(field.Type))
 			}
+		case copies:
+			out.copies = append(out.copies, assignment{field: field.Name, value: other})
+			continue
 		default:
 			wants := wantsOf(field.Tag, field.Type)
-			diags = append(diags, dropUnmatched(field, wants)...)
+			diags = append(diags, unkept(field, wants)...)
 			e, ok = fl.value(s, field.Type, wants, field.Name)
 		}
 		if !ok {
@@ -124,23 +125,39 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 	return out, diags
 }
 
-// dropUnmatched clears from wants, the rules of field, each pattern the faker
-// makes values that do not match, so that the field is numbered instead, and
-// warns about it. One that does not compile is cleared without a word: that is
-// for the validator to report.
-func dropUnmatched(field scan.Field, wants []want) []diag.Diag {
+// unkept warns about the rules of field, wants, that the fixture cannot keep:
+// a format no value of which fits the length the rules set, which str passes
+// over, and a pattern the faker makes values from that do not match it or do
+// not fit that length, which is cleared so that the field is numbered instead.
+// A pattern that does not compile is cleared without a word: that is for the
+// validator to report, as is a pattern or a format on what is not a string.
+func unkept(field scan.Field, wants []want) []diag.Diag {
 	var diags []diag.Diag
+	warn := func(msg string) {
+		diags = append(diags, diag.Warningf(field.Pos, "%s; give the field a fake tag (field %s)", msg, field.Name))
+	}
+
+	t := field.Type
 	for i, w := range wants {
+		if i > 0 {
+			t, _ = elemOf(t)
+		}
+		if shapeOf(t) != shapeString {
+			continue
+		}
+		if format, fits := formatOf(w, field.Name); !fits {
+			warn(formats[format].what + " does not fit within the length the rules set")
+		}
 		if w.pattern == "" {
 			continue
 		}
 		re, err := regexp.Compile(w.pattern)
-		if err == nil && fakerMatches(re, w.pattern) {
-			continue
-		}
 		if err == nil {
-			diags = append(diags, diag.Warningf(field.Pos,
-				"values generated from the pattern do not match it; give the field a fake tag (field %s)", field.Name))
+			msg := unmatched(re, w)
+			if msg == "" {
+				continue
+			}
+			warn(msg)
 		}
 		wants[i].pattern = ""
 	}
@@ -249,7 +266,7 @@ func (fl *filler) value(s scan.Struct, t types.Type, wants []want, name string) 
 		return fl.integer(t, b, w), true
 	case b.Info()&types.IsFloat != 0:
 		if w.exact != nil {
-			return expr{text: w.exact.String()}, true
+			return expr{text: floatLiteral(w.exact)}, true
 		}
 		return fl.convert(expr{text: fl.n, typ: types.Typ[types.Int64], usesN: true}, t), true
 	case b.Kind() == types.Bool && w.required:
@@ -334,10 +351,11 @@ func isZero(v constant.Value) bool {
 }
 
 // str works out the value of a string of type t: the first choice, a value the
-// faker makes from the pattern, a format, or the name of the field numbered.
+// faker makes from the pattern, or the name of the field numbered, in the
+// format its rules or its name ask for when a value of it fits.
 func (fl *filler) str(t types.Type, w want, name string) expr {
-	k := kebab(name)
-	switch format := formatOf(w.format, name); {
+	format, fits := formatOf(w, name)
+	switch {
 	case len(w.choices) > 0:
 		return expr{text: strconv.Quote(w.choices[0])}
 	case w.pattern != "":
@@ -346,50 +364,79 @@ func (fl *filler) str(t types.Type, w want, name string) expr {
 			lit = "`" + w.pattern + "`"
 		}
 		return fl.convert(expr{text: fl.f + ".Regex(" + lit + ")", typ: types.Typ[types.String], usesF: true}, t)
-	case format == "email":
-		return fl.convert(fl.sprintf(k+"-%d@example.com", fl.n), t)
-	case format == "url":
-		return fl.convert(fl.sprintf("https://example.com/"+k+"-%d", fl.n), t)
-	case format == "uuid":
+	case format == "uuid" && fits:
 		return fl.convert(fl.sprintf("00000000-0000-4000-8000-%012x", fl.n), t)
 	case w.maxLen == 0:
 		return expr{text: `""`}
+	case !fits:
+		// Numbered within the length alone; unkept has warned.
+		format = ""
 	}
 
-	format, mod := numbered(k, w.minLen, w.maxLen)
+	f := formats[format]
+	fixed := len(f.prefix + f.suffix)
+	maxLen := w.maxLen
+	if maxLen >= 0 {
+		maxLen -= fixed
+	}
+	verb, mod := numbered(kebab(name), w.minLen-fixed, maxLen)
 	arg := fl.n
 	if mod > 0 {
 		arg += "%" + strconv.FormatInt(mod, 10)
 	}
-	return fl.convert(fl.sprintf(format, arg), t)
+	return fl.convert(fl.sprintf(f.prefix+verb+f.suffix, arg), t)
+}
+
+// formats are the strings a rule or the name of a field asks for, by the name
+// of the rule: what to call one, and what stands around the numbered name in
+// one. A UUID has nothing around its number, which is written in full.
+var formats = map[string]struct{ what, prefix, suffix string }{
+	"email": {what: "a numbered email address", suffix: "@example.com"},
+	"url":   {what: "a numbered URL", prefix: "https://example.com/"},
+	"uuid":  {what: "a UUID"},
 }
 
 // formatOf returns the format a string takes: the one its rules name, or the
-// one the name of its field ends in.
-func formatOf(rule, name string) string {
+// one the name of its field ends in; and whether a value of it fits the length
+// the rules set, which a UUID, 36 characters long, or an address or a URL,
+// needing a digit beside its fixed part, may not.
+func formatOf(w want, name string) (string, bool) {
+	format := w.format
 	switch {
-	case rule != "":
-		return rule
+	case format != "":
 	case strings.HasSuffix(name, "Email"):
-		return "email"
+		format = "email"
 	case strings.HasSuffix(name, "URL"):
-		return "url"
+		format = "url"
 	case strings.HasSuffix(name, "UUID"):
-		return "uuid"
+		format = "uuid"
 	}
-	return ""
+	switch f := formats[format]; format {
+	case "":
+		return "", true
+	case "uuid":
+		return format, w.minLen <= 36 && (w.maxLen < 0 || w.maxLen >= 36)
+	default:
+		return format, w.maxLen < 0 || w.maxLen > len(f.prefix+f.suffix)
+	}
 }
 
-// fakerMatches reports whether the values the faker makes from pattern match
-// re, its compiled form, as far as a few tries tell. gofakeit does not make
-// every expression: it gives up on a long repeat such as a{1000}.
-func fakerMatches(re *regexp.Regexp, pattern string) bool {
+// unmatched says what is wrong with the values the faker makes from the
+// pattern of w, as far as a few tries tell: one does not match it, or does not
+// fit the length the other rules of w set. It is "" when nothing is. gofakeit
+// does not make every expression: it gives up on a long repeat such as
+// a{1000}, and repeats + and * ten times at most.
+func unmatched(re *regexp.Regexp, w want) string {
 	for seed := range uint64(8) {
-		if !re.MatchString(gofakeit.New(seed + 1).Regex(pattern)) {
-			return false
+		s := gofakeit.New(seed + 1).Regex(w.pattern)
+		switch n := utf8.RuneCountInString(s); {
+		case !re.MatchString(s):
+			return "values generated from the pattern do not match it"
+		case n < w.minLen, w.maxLen >= 0 && n > w.maxLen:
+			return "values generated from the pattern do not fit within the length the rules set"
 		}
 	}
-	return true
+	return ""
 }
 
 // numbered returns the format of a string numbered by the fixture, such as
@@ -398,18 +445,18 @@ func fakerMatches(re *regexp.Regexp, pattern string) bool {
 // taken modulo mod, when mod is not 0, where its digits would not fit.
 func numbered(name string, minLen, maxLen int) (string, int64) {
 	base := name + "-"
-	if maxLen >= 0 && len(base)+4 > maxLen {
+	if maxLen >= 0 && utf8.RuneCountInString(base)+4 > maxLen {
 		base = ""
 		if maxLen >= 6 {
-			base = name[:maxLen-5] + "-"
+			base = string([]rune(name)[:maxLen-5]) + "-"
 		}
 	}
 
 	var mod int64
-	if room := maxLen - len(base); maxLen >= 0 && room < 10 {
+	if room := maxLen - utf8.RuneCountInString(base); maxLen >= 0 && room < 10 {
 		mod = int64(math.Pow10(room))
 	}
-	if width := minLen - len(base); width > 1 {
+	if width := minLen - utf8.RuneCountInString(base); width > 1 {
 		return base + "%0" + strconv.Itoa(width) + "d", mod
 	}
 	return base + "%d", mod
@@ -435,8 +482,14 @@ func (fl *filler) integer(t types.Type, b *types.Basic, w want) expr {
 
 	low, high := int64(1), maxOf(b)
 	if w.low != nil {
-		low, _ = constant.Int64Val(w.low)
+		l, exact := constant.Int64Val(w.low)
+		if !exact {
+			return fl.beyondInt64(t, w)
+		}
+		low = l
 	}
+	// An upper bound beyond what the int64 number of a fixture holds is passed
+	// over: the number never reaches it.
 	if w.high != nil {
 		if h, exact := constant.Int64Val(w.high); exact {
 			high = h
@@ -459,6 +512,25 @@ func (fl *filler) integer(t types.Type, b *types.Basic, w want) expr {
 	return fl.convert(expr{text: text, typ: types.Typ[types.Int64], usesN: true}, t)
 }
 
+// beyondInt64 works out the value of an integer whose lower bound lies beyond
+// what the int64 number of a fixture holds, which only an unsigned type of 64
+// bits can have: the number counted from that bound in uint64, and wrapped
+// within the upper bound, or what the type holds, so that it never overflows.
+func (fl *filler) beyondInt64(t types.Type, w want) expr {
+	high := w.high
+	if high == nil {
+		high = constant.MakeUint64(math.MaxUint64)
+	}
+	if constant.Compare(high, token.EQL, w.low) {
+		return expr{text: w.low.String()}
+	}
+	one := constant.MakeInt64(1)
+	span := constant.BinaryOp(constant.BinaryOp(high, token.SUB, w.low), token.ADD, one)
+	n := fl.convert(expr{text: fl.n, typ: types.Typ[types.Int64]}, types.Typ[types.Uint64]).text
+	text := fmt.Sprintf("%s + (%s-1)%%%s", w.low, n, span)
+	return fl.convert(expr{text: text, typ: types.Typ[types.Uint64], usesN: true}, t)
+}
+
 // narrowMax holds the largest value of each integer kind narrower than the
 // int64 number of a fixture.
 var narrowMax = map[types.BasicKind]int64{
@@ -477,6 +549,72 @@ func maxOf(b *types.Basic) int64 {
 		return m
 	}
 	return math.MaxInt64
+}
+
+// floatLiteral spells v as the generated code writes a float: in full, where
+// constant.Value.String rounds to six digits, which could cross a bound.
+func floatLiteral(v constant.Value) string {
+	f, _ := constant.Float64Val(v)
+	return strconv.FormatFloat(f, 'g', -1, 64)
+}
+
+// nameable reports whether a package other than the one declaring t can spell
+// it, as the fixtures spell a type they convert to, point to, or make. An
+// unexported type is known by its name only in its own package, and so is a
+// struct type written out with an unexported field.
+func nameable(t types.Type) bool {
+	switch u := t.(type) {
+	case *types.Named:
+		return nameableName(u.Obj(), u.TypeArgs())
+	case *types.Alias:
+		return nameableName(u.Obj(), u.TypeArgs())
+	case *types.Map:
+		return nameable(u.Key()) && nameable(u.Elem())
+	case interface{ Elem() types.Type }:
+		// A pointer, slice, array, or channel.
+		return nameable(u.Elem())
+	case *types.Struct:
+		for f := range u.Fields() {
+			if !f.Exported() || !nameable(f.Type()) {
+				return false
+			}
+		}
+	case *types.Signature:
+		return nameable(u.Params()) && nameable(u.Results())
+	case *types.Tuple:
+		for v := range u.Variables() {
+			if !nameable(v.Type()) {
+				return false
+			}
+		}
+	case *types.Interface:
+		for m := range u.ExplicitMethods() {
+			if !m.Exported() || !nameable(m.Type()) {
+				return false
+			}
+		}
+		for e := range u.EmbeddedTypes() {
+			if !nameable(e) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// nameableName reports whether other packages can spell the type obj names,
+// with the arguments args of an instance: it is exported, or declared in the
+// universe as error is, and so are they.
+func nameableName(obj *types.TypeName, args *types.TypeList) bool {
+	if obj.Pkg() != nil && !obj.Exported() {
+		return false
+	}
+	for a := range args.Types() {
+		if !nameable(a) {
+			return false
+		}
+	}
+	return true
 }
 
 // convert converts e to t where their types differ. An untyped constant needs

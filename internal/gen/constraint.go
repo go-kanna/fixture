@@ -185,7 +185,7 @@ type reader struct {
 	w     want
 
 	// For a number: its bounds, the values eq and oneof give it, and those ne
-	// rules out.
+	// rules out; for a string, the values ne rules out.
 	lower, upper bound
 	equal        []string
 	not          []constant.Value
@@ -229,6 +229,8 @@ func (r *reader) length(name, param string) {
 	if r.shape == shapeString && (name == "eq" || name == "ne") {
 		if name == "eq" {
 			r.w.choices = []string{param}
+		} else {
+			r.not = append(r.not, constant.MakeString(param))
 		}
 		return
 	}
@@ -277,12 +279,23 @@ func (r *reader) want() want {
 	b, ok := deref(r.typ).Underlying().(*types.Basic)
 	switch {
 	case !ok:
+	case r.shape == shapeString:
+		r.w.choices = slices.DeleteFunc(r.w.choices, func(c string) bool { return r.rulesOut(constant.MakeString(c)) })
 	case r.shape == shapeInteger:
 		r.integer(b)
 	case r.shape == shapeFloat:
 		r.float(b)
 	}
 	return r.w
+}
+
+// rulesOut reports whether the rules leave v out: ne names it, or it is the
+// zero value under required, which the validators take as blank.
+func (r *reader) rulesOut(v constant.Value) bool {
+	if r.w.required && isZero(v) {
+		return true
+	}
+	return slices.ContainsFunc(r.not, func(n constant.Value) bool { return constant.Compare(n, token.EQL, v) })
 }
 
 // integer works out the range of an integer of type b, or the one value to
@@ -292,8 +305,8 @@ func (r *reader) want() want {
 // unique as far as the range lets them: gt=0 on an ID gives 1, 2, 3.
 func (r *reader) integer(b *types.Basic) {
 	if len(r.equal) > 0 {
-		if v := parseNumber(r.equal[0]); v != nil && isInteger(v) && fits(v, b) {
-			r.w.exact = v
+		if v := r.choice(b); v != nil {
+			r.w.exact = constant.ToInt(v)
 		}
 		return
 	}
@@ -305,6 +318,18 @@ func (r *reader) integer(b *types.Basic) {
 	if r.upper.value != nil {
 		high = floor(r.upper.value, r.upper.open)
 	}
+	one := constant.MakeInt64(1)
+	if r.w.required {
+		// The validators take 0 as blank. A range reaching it is cut to the
+		// part above, where a fixture counts, or to the part below when there
+		// is none.
+		switch {
+		case high != nil && constant.Sign(high) == 0:
+			high = constant.MakeInt64(-1)
+		case low != nil && constant.Sign(low) <= 0 && (high == nil || constant.Sign(high) > 0):
+			low = one
+		}
+	}
 	if low != nil && !fits(low, b) {
 		low = nil
 	}
@@ -315,7 +340,6 @@ func (r *reader) integer(b *types.Basic) {
 		return
 	}
 
-	one := constant.MakeInt64(1)
 	if low == nil && high != nil {
 		if constant.Compare(high, token.LSS, one) {
 			r.w.exact = high
@@ -328,46 +352,93 @@ func (r *reader) integer(b *types.Basic) {
 	if start == nil {
 		start = one
 	}
-	cut := slices.ContainsFunc(r.not, func(v constant.Value) bool {
-		return constant.Compare(v, token.GEQ, start) && (high == nil || constant.Compare(v, token.LEQ, high))
-	})
-	if cut {
-		for v := start; high == nil || constant.Compare(v, token.LEQ, high); v = constant.BinaryOp(v, token.ADD, one) {
-			if !slices.ContainsFunc(r.not, func(n constant.Value) bool { return constant.Compare(n, token.EQL, v) }) {
-				r.w.exact = v
-				break
-			}
-		}
+	if r.cut(start, high) {
+		r.w.exact = r.lowest(start, high)
 		return
 	}
 	r.w.low, r.w.high = low, high
 }
 
+// choice returns the first value eq or oneof gives that a number of type b
+// holds and that the rules do not leave out, or nil.
+func (r *reader) choice(b *types.Basic) constant.Value {
+	for _, s := range r.equal {
+		if v := parseNumber(s); v != nil && fits(v, b) && !r.rulesOut(v) {
+			return v
+		}
+	}
+	return nil
+}
+
+// cut reports whether ne names a value a fixture would count to: one from
+// start up to high, or up without end when high is nil.
+func (r *reader) cut(start, high constant.Value) bool {
+	return slices.ContainsFunc(r.not, func(v constant.Value) bool {
+		return constant.Compare(v, token.GEQ, start) && (high == nil || constant.Compare(v, token.LEQ, high))
+	})
+}
+
+// lowest returns the lowest whole number from start up to high, or up without
+// end when high is nil, that the rules do not leave out, or nil when they
+// leave none.
+func (r *reader) lowest(start, high constant.Value) constant.Value {
+	one := constant.MakeInt64(1)
+	for v := start; high == nil || constant.Compare(v, token.LEQ, high); v = constant.BinaryOp(v, token.ADD, one) {
+		if !r.rulesOut(v) {
+			return v
+		}
+	}
+	return nil
+}
+
 // float works out the one value to fill a float of type b with, when its rules
 // bound it: the lowest value they allow, or the highest when they set no lower
-// bound. A float is seldom an identity, so it is not counted up.
+// bound, passing over what ne and required leave out. A float is seldom an
+// identity, so it is not counted up.
 func (r *reader) float(b *types.Basic) {
+	one := constant.MakeInt64(1)
 	var v constant.Value
 	switch {
 	case len(r.equal) > 0:
-		v = parseNumber(r.equal[0])
+		v = r.choice(b)
 	case r.lower.value != nil:
 		v = r.lower.value
 		if r.lower.open {
-			v = constant.BinaryOp(v, token.ADD, constant.MakeInt64(1))
-			if !r.upper.under(v) {
-				v = constant.BinaryOp(constant.BinaryOp(r.lower.value, token.ADD, r.upper.value), token.QUO, constant.MakeInt64(2))
+			v, _ = r.above(v)
+		}
+		for r.rulesOut(v) {
+			next, ok := r.above(v)
+			if !ok {
+				break
 			}
+			v = next
 		}
 	case r.upper.value != nil:
 		v = r.upper.value
 		if r.upper.open {
-			v = constant.BinaryOp(v, token.SUB, constant.MakeInt64(1))
+			v = constant.BinaryOp(v, token.SUB, one)
 		}
+		for r.rulesOut(v) {
+			v = constant.BinaryOp(v, token.SUB, one)
+		}
+	case r.cut(one, nil):
+		// The fixture would fill its number, counted from 1.
+		v = r.lowest(one, nil)
 	}
 	if v != nil && fits(v, b) {
 		r.w.exact = v
 	}
+}
+
+// above returns the value above v by 1, or by half of what is left below the
+// upper bound when 1 is too far, and false when nothing is left.
+func (r *reader) above(v constant.Value) (constant.Value, bool) {
+	next := constant.BinaryOp(v, token.ADD, constant.MakeInt64(1))
+	if r.upper.under(next) {
+		return next, true
+	}
+	mid := constant.BinaryOp(constant.BinaryOp(v, token.ADD, r.upper.value), token.QUO, constant.MakeInt64(2))
+	return mid, constant.Compare(mid, token.GTR, v)
 }
 
 // choices splits the options of oneof, which are separated by spaces, unless

@@ -91,7 +91,7 @@ func User(setters ...func(*model.User)) model.User {
 		ID:        n,
 		Name:      mustGenerate(f, "{firstname} {lastname}"),
 		Email:     fmt.Sprintf("email-%d@example.com", n),
-		Age:       18,
+		Age:       int(18 + (n-1)%113),
 		Role:      model.RoleAdmin,
 		CreatedAt: time.Date(2000, time.January, 1, 0, 0, int(n), 0, time.UTC),
 	}
@@ -140,7 +140,8 @@ Every call takes the next number n of its type, starting at 1, and each field ta
 | a pointer, slice, map, interface, channel, func, array, or other struct | the zero value                                                          |
 
 Then [the rules of its `validate` tag](#rules) adjust the value. Unexported fields are left alone, since the fixtures
-cannot set them from their own package.
+cannot set them from their own package, and so are fields of a type they cannot name from there: an unexported type, or
+a struct type written out with an unexported field.
 
 What the number feeds is unique per type, and names its field: `title-3` in a failure is the Title of the third Article
 made. What it does not feed — constants, the first of a `oneof`, bools — is the same whichever tests ran first, so a
@@ -176,23 +177,25 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 // Validating req reports Email, and nothing else.
 ```
 
-| Rule                                               | Value                                                                                          |
-|----------------------------------------------------|------------------------------------------------------------------------------------------------|
-| `required`                                         | not the zero value: `true`, a pointer to a value, a slice of one element                       |
-| `min`, `max`, `len` on strings and slices          | a length within them: `password-001` for `min=12`, k elements for `min=k`                      |
-| `gt`, `gte`, `lt`, `lte`, `min`, `max` on integers | n, counted from the lower bound, or from 1, and wrapping within the upper: `gt=0` → 1, 2, 3, … |
-| `gt`, `gte`, `lt`, `lte`, `min`, `max` on floats   | the lowest value they allow, or the highest without a lower bound: `gt=0` → `1`                |
-| `eq`                                               | that value                                                                                     |
-| `ne`                                               | another value: where it rules out part of a range, the lowest value left                       |
-| `oneof=a b c`                                      | the first: `"admin"`                                                                           |
-| `eqfield=Field`                                    | the other field's value                                                                        |
-| `email`, `url`, `uuid`                             | that format                                                                                    |
-| `pattern=regexp`, which only kanna-validate has    | a string gofakeit generates from the expression                                                |
-| `dive`                                             | the rules after it, for each element made                                                      |
+| Rule                                               | Value                                                                                                     |
+|----------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
+| `required`                                         | not the zero value: `true`, a number other than 0, a pointer to a value, a slice of one element           |
+| `min`, `max`, `len` on strings and slices          | a length within them: `password-001` for `min=12`, k elements for `min=k`                                 |
+| `gt`, `gte`, `lt`, `lte`, `min`, `max` on integers | n, counted from the lower bound, or from 1, and wrapping within the upper: `gt=0` → 1, 2, 3, …            |
+| `gt`, `gte`, `lt`, `lte`, `min`, `max` on floats   | the lowest value they allow, or the highest without a lower bound: `gt=0` → `1`                           |
+| `eq`                                               | that value                                                                                                |
+| `ne`                                               | another value: the next choice of a `oneof`, or where it rules out part of a range, the lowest value left |
+| `oneof=a b c`                                      | the first: `"admin"`                                                                                      |
+| `eqfield=Field`                                    | the other field's value                                                                                   |
+| `email`, `url`, `uuid`                             | that format, numbered within `min` and `max`: `em-0001@example.com` for `len=19`                          |
+| `pattern=regexp`, which only kanna-validate has    | a string gofakeit generates from the expression                                                           |
+| `dive`                                             | the rules after it, for each element made                                                                 |
 
 The rules are read to be satisfied, not checked: a rule kanna-fixture does not know is left to whatever validates the
 struct, and the value it gets may not pass it. A pattern is the one rule a number cannot meet, and gofakeit cannot
-generate every expression; when what it makes does not match, generation warns and asks for a `fake` tag.
+generate every expression; when what it makes does not match, or does not fit within `min`, `max`, or `len`, generation
+warns and asks for a `fake` tag. So it does for a format that cannot fit within them: a UUID is 36 characters long, and
+an address or a URL needs room for its number beside `@example.com` or `https://example.com/`.
 
 ## The fake tag
 
@@ -221,10 +224,10 @@ generating, against the gofakeit the module requires:
 
 ```console
 $ go generate ./...
-./model.go:9:2: error: unknown function "numbr" in fake tag (field Age)
+./model.go:9:2: error: unknown function "numbr" in fake tag "{numbr:1,10}" (field Age)
   did you mean "number"?
 ./model.go:10:2: error: fake tag "{email}" cannot fill int (field Count)
-./model.go:11:2: error: fake tag "{number:1,300}" does not fit int8 (field Level)
+./model.go:11:2: error: fake tag "{number:1,300}": 300 does not fit int8 (field Level)
 ./model.go:14:2: warning: values generated from the pattern do not match it; give the field a fake tag (field Code)
 ```
 

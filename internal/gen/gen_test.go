@@ -163,6 +163,7 @@ func TestCommand_Errors(t *testing.T) {
 		"other/other.go":  "package other\n\ntype Order struct{ ID int64 }\n",
 		"cmd/app/main.go": "package main\n\ntype Config struct{ Port int }\n\nfunc main() {}\n",
 		"tagged/model.go": "package tagged\n\ntype User struct {\n\tAge int `fake:\"{numbr:1,10}\"`\n}\n",
+		"tests/x_test.go": "package tests\n",
 	})
 
 	tests := []struct {
@@ -171,7 +172,7 @@ func TestCommand_Errors(t *testing.T) {
 		want string
 	}{
 		{name: "two packages", args: []string{"./model", "./other"}, want: "kanna-fixture reads one package, got 2"},
-		{name: "several packages", args: []string{"./..."}, want: "./... matches 4 packages; kanna-fixture reads one"},
+		{name: "several packages", args: []string{"./..."}, want: "./... matches 5 packages; kanna-fixture reads one"},
 		{name: "files", args: []string{"model/model.go"}, want: "name a package, not the files of one"},
 		{
 			name: "a command",
@@ -186,6 +187,7 @@ func TestCommand_Errors(t *testing.T) {
 		},
 		{name: "a package that does not exist", args: []string{"./missing"}, want: "error:"},
 		{name: "a misspelled template", args: []string{"./tagged"}, want: `did you mean "number"?`},
+		{name: "only tests", args: []string{"./tests"}, want: "example.com/app/tests has no Go files to generate from"},
 	}
 
 	for _, tt := range tests {

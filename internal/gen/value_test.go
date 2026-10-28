@@ -184,6 +184,20 @@ type SignUp struct {
 	Anys     []any             `+"`"+`validate:"required"`+"`"+`
 	Meta     map[string]string `+"`"+`validate:"required"`+"`"+`
 	Again    string            `+"`"+`validate:"eqfield=Missing"`+"`"+`
+	Hits     int               `+"`"+`validate:"required,gte=0"`+"`"+`
+	Cost     float64           `+"`"+`validate:"required,gte=0"`+"`"+`
+	Pi       float64           `+"`"+`validate:"eq=3.14159265"`+"`"+`
+	Small    float64           `+"`"+`validate:"lte=0.1234567"`+"`"+`
+	Tight    float64           `+"`"+`validate:"gt=1,lt=1.00001"`+"`"+`
+	Big      uint64            `+"`"+`validate:"gte=9223372036854775808"`+"`"+`
+	Ärger    string            `+"`"+`validate:"max=6"`+"`"+`
+	Word     string            `+"`"+`validate:"min=3,pattern=^[a-z]+$"`+"`"+`
+	Mail     string            `+"`"+`validate:"email,len=19"`+"`"+`
+	Site     string            `+"`"+`validate:"url,min=30"`+"`"+`
+	Contact  string            `+"`"+`validate:"email,max=10"`+"`"+`
+	Ref      string            `+"`"+`validate:"uuid,max=20"`+"`"+`
+	Bigger   uint64            `+"`"+`validate:"gte=9223372036854775808,lte=9223372036854775810"`+"`"+`
+	Biggest  uint64            `+"`"+`validate:"gte=18446744073709551615"`+"`"+`
 }
 `)
 
@@ -218,6 +232,20 @@ type SignUp struct {
 		"Anys: make([]any, 1)",
 		"Meta: map[string]string{}",
 		`Again: fmt.Sprintf("again-%d", n)`,
+		"Hits: int(n)",
+		"Cost: 1",
+		"Pi: 3.14159265",
+		"Small: 0.1234567",
+		"Tight: 1.000005",
+		"Big: 9223372036854775808 + (uint64(n)-1)%9223372036854775808",
+		`Ärger: fmt.Sprintf("ä-%d", n%10000)`,
+		`Word: fmt.Sprintf("word-%d", n)`,
+		`Mail: fmt.Sprintf("ma-%04d@example.com", n%10000)`,
+		`Site: fmt.Sprintf("https://example.com/site-%05d", n)`,
+		`Contact: fmt.Sprintf("conta-%d", n%10000)`,
+		`Ref: fmt.Sprintf("ref-%d", n)`,
+		"Bigger: 9223372036854775808 + (uint64(n)-1)%3",
+		"Biggest: 18446744073709551615",
 		"Confirm = Password",
 		"uses n",
 		"uses f",
@@ -225,6 +253,11 @@ type SignUp struct {
 
 	want := []string{
 		"test.go:34:2: warning: values generated from the pattern do not match it; give the field a fake tag (field Code)",
+		"test.go:54:2: warning: values generated from the pattern do not fit within the length the rules set; " +
+			"give the field a fake tag (field Word)",
+		"test.go:57:2: warning: a numbered email address does not fit within the length the rules set; " +
+			"give the field a fake tag (field Contact)",
+		"test.go:58:2: warning: a UUID does not fit within the length the rules set; give the field a fake tag (field Ref)",
 	}
 	if !slices.Equal(diags, want) {
 		t.Errorf("diagnostics = %q, want %q", diags, want)
@@ -258,6 +291,8 @@ type Person struct {
 	Rate     *float64  `+"`"+`fake:"1.5"`+"`"+`
 	Ignored  string    `+"`"+`fake:"{zzzzzzzzzz}" validate:"required"`+"`"+`
 	Bad      int       `+"`"+`fake:"{email}"`+"`"+`
+	Again    string    `+"`"+`fake:"{lastname}" validate:"eqfield=Name"`+"`"+`
+	Twice    string    `+"`"+`fake:"{lastname" validate:"eqfield=Name"`+"`"+`
 }
 `)
 
@@ -274,6 +309,7 @@ type Person struct {
 		"Answer: new(42)",
 		`Label: new("x")`,
 		"Rate: new(1.5)",
+		`Again: mustGenerate(f, "{lastname}")`,
 		"uses f",
 	})
 
@@ -282,6 +318,7 @@ type Person struct {
 		"test.go:24:2: error: fake tag \"{email}\" cannot fill int (field Bad)\n" +
 			"  a number takes {number}, {intrange}, {uintrange}, {float32range}, {float64range}, {price}, " +
 			"or a number as it stands",
+		`test.go:26:2: error: fake tag "{lastname": no } closes the { of {lastname (field Twice)`,
 	}
 	if !slices.Equal(diags, want) {
 		t.Errorf("diagnostics = %q, want %q", diags, want)
@@ -355,6 +392,59 @@ type Post struct {
 		"Readers: []model.User{User(), User()}",
 	})
 	checkFill(t, got, "Post", []string{"Base: Base()"})
+	if len(diags) > 0 {
+		t.Errorf("diagnostics = %q, want none", diags)
+	}
+}
+
+// A type the fixtures cannot name from their own package leaves its field
+// zero, as an unexported field is, whatever the tags ask.
+func TestFill_Unnameable(t *testing.T) {
+	t.Parallel()
+
+	got, diags := fill(t, `package model
+
+type level int
+
+type lvl = level
+
+type home struct {
+	Street string
+}
+
+type hider interface {
+	hide()
+}
+
+//kanna:ignore
+type Box[T any] struct {
+	Value T
+}
+
+type Thing struct {
+	Name   string
+	Level  level
+	Alias  lvl
+	Faked  level                 `+"`"+`fake:"42"`+"`"+`
+	Home   *home                 `+"`"+`validate:"required"`+"`"+`
+	Homes  []home                `+"`"+`validate:"min=1"`+"`"+`
+	Places map[string]home       `+"`"+`validate:"required"`+"`"+`
+	Hooks  []func(chan level)    `+"`"+`validate:"min=1"`+"`"+`
+	Hidden []interface{ hide() } `+"`"+`validate:"min=1"`+"`"+`
+	Hiders []interface{ hider }  `+"`"+`validate:"min=1"`+"`"+`
+	Boxed  []Box[level]          `+"`"+`validate:"min=1"`+"`"+`
+	Spot   *struct{ x int }      `+"`"+`validate:"required"`+"`"+`
+	Place  *struct{ X int }      `+"`"+`validate:"required"`+"`"+`
+	Boxes  []Box[int]            `+"`"+`validate:"min=1"`+"`"+`
+}
+`)
+
+	checkFill(t, got, "Thing", []string{
+		`Name: fmt.Sprintf("name-%d", n)`,
+		"Place: new(struct{X int})",
+		"Boxes: make([]model.Box[int], 1)",
+		"uses n",
+	})
 	if len(diags) > 0 {
 		t.Errorf("diagnostics = %q, want none", diags)
 	}

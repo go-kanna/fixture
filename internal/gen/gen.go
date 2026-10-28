@@ -126,6 +126,10 @@ func source(set packages.Set, patterns []string) (*packages.Package, diag.Diag, 
 		return nil, diag.Errorf(token.Position{}, "name a package, not the files of one"), false
 	case pkg.Name == "main":
 		return nil, diag.Errorf(token.Position{}, "%s is a command, which the fixtures cannot import", pkg.PkgPath), false
+	case len(pkg.GoFiles) == 0:
+		// Only tests, or files the build tags exclude: nothing to read, and no
+		// directory to keep the destination out of.
+		return nil, diag.Errorf(token.Position{}, "%s has no Go files to generate from", pkg.PkgPath), false
 	default:
 		return pkg, diag.Diag{}, true
 	}
