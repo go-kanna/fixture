@@ -59,7 +59,7 @@ type SignUp struct {
 
 // Draft gets no fixture.
 //
-//kanna:ignore
+//kanna:fixture skip
 type Draft struct {
 	Body string
 }

@@ -236,9 +236,9 @@ $ go generate ./...
 Every exported struct in the package gets a fixture. There is nothing to opt into, so a struct added to the model has
 one by the next `go generate`.
 
-| Directive        | Effect                                    |
-|------------------|-------------------------------------------|
-| `//kanna:ignore` | do not generate a fixture for this struct |
+| Directive              | Effect                                    |
+|------------------------|-------------------------------------------|
+| `//kanna:fixture skip` | do not generate a fixture for this struct |
 
 `-exclude` does the same from the command line, for a package whose source you do not write, such as the models sqlc
 generates. A name it lists that the package does not declare gets a warning.
@@ -246,11 +246,13 @@ generates. A name it lists that the package does not declare gets a warning.
 Skipped with a warning: a generic struct, for which a fixture has no type arguments to pick, and a struct that must not
 be copied, such as one holding a `sync.Mutex`, since a fixture returns a value. A protobuf message is one of these, as
 `go vet` would say of copying it. A misspelled directive also gets a warning, which would otherwise leave the struct
-with a fixture and say nothing:
+with a fixture and say nothing, and `//kanna:fixture` with an argument other than `skip`, or none, an error:
 
 ```console
-./model.go:3:1: warning: "//kanna:ignor" is not recognized as a directive
-  did you mean "//kanna:ignore"?
+./model.go:3:1: warning: "//kanna:fixtur skip" is not recognized as a directive
+  did you mean "//kanna:fixture skip"?
+./model.go:8:1: error: //kanna:fixture takes skip, got "skp"
+  did you mean "//kanna:fixture skip"?
 ```
 
 When no struct is left, generation warns and removes the `fixture_gen.go` it wrote before.

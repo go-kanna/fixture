@@ -86,7 +86,7 @@ type home struct {
 
 // Internal gets no fixture.
 //
-//kanna:ignore
+//kanna:fixture skip
 type Internal struct {
 	Token string
 }

@@ -345,7 +345,7 @@ type Address struct {
 	Shadow *User `+"`"+`fake:"-" validate:"required"`+"`"+`
 }
 
-//kanna:ignore
+//kanna:fixture skip
 type Secret struct{}
 
 type Article struct {
@@ -416,7 +416,7 @@ type hider interface {
 	hide()
 }
 
-//kanna:ignore
+//kanna:fixture skip
 type Box[T any] struct {
 	Value T
 }
