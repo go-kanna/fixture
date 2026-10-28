@@ -243,6 +243,10 @@ one by the next `go generate`.
 `-exclude` does the same from the command line, for a package whose source you do not write, such as the models sqlc
 generates. A name it lists that the package does not declare gets a warning.
 
+A struct marked `//kanna:value` gets no fixture either, and says nothing: it is a value type of
+[kanna-value](https://github.com/go-kanna/value), whose one field is unexported and whose values are made through its
+constructor. A field of such a type is left zero, as one never given; set it with `MustX` in a setter.
+
 Skipped with a warning: a generic struct, for which a fixture has no type arguments to pick, and a struct that must not
 be copied, such as one holding a `sync.Mutex`, since a fixture returns a value. A protobuf message is one of these, as
 `go vet` would say of copying it. A misspelled directive also gets a warning, which would otherwise leave the struct
