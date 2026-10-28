@@ -196,6 +196,8 @@ type SignUp struct {
 	Site     string            `+"`"+`validate:"url,min=30"`+"`"+`
 	Contact  string            `+"`"+`validate:"email,max=10"`+"`"+`
 	Ref      string            `+"`"+`validate:"uuid,max=20"`+"`"+`
+	Bigger   uint64            `+"`"+`validate:"gte=9223372036854775808,lte=9223372036854775810"`+"`"+`
+	Biggest  uint64            `+"`"+`validate:"gte=18446744073709551615"`+"`"+`
 }
 `)
 
@@ -235,13 +237,15 @@ type SignUp struct {
 		"Pi: 3.14159265",
 		"Small: 0.1234567",
 		"Tight: 1.000005",
-		"Big: uint64(n)",
+		"Big: 9223372036854775808 + (uint64(n)-1)%9223372036854775808",
 		`Ärger: fmt.Sprintf("ä-%d", n%10000)`,
 		`Word: fmt.Sprintf("word-%d", n)`,
 		`Mail: fmt.Sprintf("ma-%04d@example.com", n%10000)`,
 		`Site: fmt.Sprintf("https://example.com/site-%05d", n)`,
 		`Contact: fmt.Sprintf("conta-%d", n%10000)`,
 		`Ref: fmt.Sprintf("ref-%d", n)`,
+		"Bigger: 9223372036854775808 + (uint64(n)-1)%3",
+		"Biggest: 18446744073709551615",
 		"Confirm = Password",
 		"uses n",
 		"uses f",

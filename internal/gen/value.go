@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"go/constant"
+	"go/token"
 	"go/types"
 	"math"
 	"reflect"
@@ -479,13 +480,16 @@ func (fl *filler) integer(t types.Type, b *types.Basic, w want) expr {
 		return expr{text: w.exact.String()}
 	}
 
-	// A bound beyond what the int64 number of a fixture holds is passed over.
 	low, high := int64(1), maxOf(b)
 	if w.low != nil {
-		if l, exact := constant.Int64Val(w.low); exact {
-			low = l
+		l, exact := constant.Int64Val(w.low)
+		if !exact {
+			return fl.beyondInt64(t, w)
 		}
+		low = l
 	}
+	// An upper bound beyond what the int64 number of a fixture holds is passed
+	// over: the number never reaches it.
 	if w.high != nil {
 		if h, exact := constant.Int64Val(w.high); exact {
 			high = h
@@ -506,6 +510,25 @@ func (fl *filler) integer(t types.Type, b *types.Basic, w want) expr {
 		text = fmt.Sprintf("%d + (%s-1)%%%d", low, fl.n, high-low+1)
 	}
 	return fl.convert(expr{text: text, typ: types.Typ[types.Int64], usesN: true}, t)
+}
+
+// beyondInt64 works out the value of an integer whose lower bound lies beyond
+// what the int64 number of a fixture holds, which only an unsigned type of 64
+// bits can have: the number counted from that bound in uint64, and wrapped
+// within the upper bound, or what the type holds, so that it never overflows.
+func (fl *filler) beyondInt64(t types.Type, w want) expr {
+	high := w.high
+	if high == nil {
+		high = constant.MakeUint64(math.MaxUint64)
+	}
+	if constant.Compare(high, token.EQL, w.low) {
+		return expr{text: w.low.String()}
+	}
+	one := constant.MakeInt64(1)
+	span := constant.BinaryOp(constant.BinaryOp(high, token.SUB, w.low), token.ADD, one)
+	n := fl.convert(expr{text: fl.n, typ: types.Typ[types.Int64]}, types.Typ[types.Uint64]).text
+	text := fmt.Sprintf("%s + (%s-1)%%%s", w.low, n, span)
+	return fl.convert(expr{text: text, typ: types.Typ[types.Uint64], usesN: true}, t)
 }
 
 // narrowMax holds the largest value of each integer kind narrower than the
