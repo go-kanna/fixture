@@ -91,7 +91,7 @@ func User(setters ...func(*model.User)) model.User {
 		ID:        n,
 		Name:      mustGenerate(f, "{firstname} {lastname}"),
 		Email:     fmt.Sprintf("email-%d@example.com", n),
-		Age:       18,
+		Age:       int(18 + (n-1)%113),
 		Role:      model.RoleAdmin,
 		CreatedAt: time.Date(2000, time.January, 1, 0, 0, int(n), 0, time.UTC),
 	}
@@ -224,10 +224,10 @@ generating, against the gofakeit the module requires:
 
 ```console
 $ go generate ./...
-./model.go:9:2: error: unknown function "numbr" in fake tag (field Age)
+./model.go:9:2: error: unknown function "numbr" in fake tag "{numbr:1,10}" (field Age)
   did you mean "number"?
 ./model.go:10:2: error: fake tag "{email}" cannot fill int (field Count)
-./model.go:11:2: error: fake tag "{number:1,300}" does not fit int8 (field Level)
+./model.go:11:2: error: fake tag "{number:1,300}": 300 does not fit int8 (field Level)
 ./model.go:14:2: warning: values generated from the pattern do not match it; give the field a fake tag (field Code)
 ```
 
