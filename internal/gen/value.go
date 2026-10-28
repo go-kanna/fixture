@@ -249,7 +249,7 @@ func (fl *filler) value(s scan.Struct, t types.Type, wants []want, name string) 
 		return fl.integer(t, b, w), true
 	case b.Info()&types.IsFloat != 0:
 		if w.exact != nil {
-			return expr{text: w.exact.String()}, true
+			return expr{text: floatLiteral(w.exact)}, true
 		}
 		return fl.convert(expr{text: fl.n, typ: types.Typ[types.Int64], usesN: true}, t), true
 	case b.Kind() == types.Bool && w.required:
@@ -433,9 +433,12 @@ func (fl *filler) integer(t types.Type, b *types.Basic, w want) expr {
 		return expr{text: w.exact.String()}
 	}
 
+	// A bound beyond what the int64 number of a fixture holds is passed over.
 	low, high := int64(1), maxOf(b)
 	if w.low != nil {
-		low, _ = constant.Int64Val(w.low)
+		if l, exact := constant.Int64Val(w.low); exact {
+			low = l
+		}
 	}
 	if w.high != nil {
 		if h, exact := constant.Int64Val(w.high); exact {
@@ -477,6 +480,13 @@ func maxOf(b *types.Basic) int64 {
 		return m
 	}
 	return math.MaxInt64
+}
+
+// floatLiteral spells v as the generated code writes a float: in full, where
+// constant.Value.String rounds to six digits, which could cross a bound.
+func floatLiteral(v constant.Value) string {
+	f, _ := constant.Float64Val(v)
+	return strconv.FormatFloat(f, 'g', -1, 64)
 }
 
 // convert converts e to t where their types differ. An untyped constant needs

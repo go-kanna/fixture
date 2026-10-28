@@ -186,6 +186,10 @@ type SignUp struct {
 	Again    string            `+"`"+`validate:"eqfield=Missing"`+"`"+`
 	Hits     int               `+"`"+`validate:"required,gte=0"`+"`"+`
 	Cost     float64           `+"`"+`validate:"required,gte=0"`+"`"+`
+	Pi       float64           `+"`"+`validate:"eq=3.14159265"`+"`"+`
+	Small    float64           `+"`"+`validate:"lte=0.1234567"`+"`"+`
+	Tight    float64           `+"`"+`validate:"gt=1,lt=1.00001"`+"`"+`
+	Big      uint64            `+"`"+`validate:"gte=9223372036854775808"`+"`"+`
 }
 `)
 
@@ -222,6 +226,10 @@ type SignUp struct {
 		`Again: fmt.Sprintf("again-%d", n)`,
 		"Hits: int(n)",
 		"Cost: 1",
+		"Pi: 3.14159265",
+		"Small: 0.1234567",
+		"Tight: 1.000005",
+		"Big: uint64(n)",
 		"Confirm = Password",
 		"uses n",
 		"uses f",
