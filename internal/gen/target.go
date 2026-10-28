@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"go/types"
 	"slices"
+	"strconv"
 
 	"github.com/go-kanna/internal/diag"
 	"github.com/go-kanna/internal/directive"
@@ -13,11 +14,15 @@ import (
 	"github.com/go-kanna/internal/suggest"
 )
 
-// directiveKey spells the directive //kanna:ignore.
-const directiveKey = "ignore"
+// directiveKey spells the directive //kanna:fixture, whose argument says what
+// to do with the struct.
+const directiveKey = "fixture"
 
-// ignoreHint tells how to leave a struct out without a warning.
-const ignoreHint = "mark it //kanna:" + directiveKey + " to leave it out without a warning"
+// skip is the argument of //kanna:fixture that leaves a struct out.
+const skip = "skip"
+
+// skipHint tells how to leave a struct out without a warning.
+const skipHint = "mark it //kanna:" + directiveKey + " " + skip + " to leave it out without a warning"
 
 // targets returns the structs that get a fixture, sorted by name, and says why
 // the others a reader would expect one for do not. exclude names structs to
@@ -43,20 +48,20 @@ func targets(fset *token.FileSet, structs []scan.Struct, exclude []string) ([]sc
 		diags = append(diags, ds...)
 		switch {
 		case d.Found:
-			if d.Args != "" {
-				diags = append(diags, diag.Errorf(d.Pos, "//kanna:%s takes no arguments, got %q", directiveKey, d.Args))
+			if d.Args != skip {
+				diags = append(diags, badArgs(d))
 			}
 		case slices.Contains(exclude, s.Name):
 		case s.Named.TypeParams().Len() > 0:
 			diags = append(diags, diag.Warningf(s.Pos,
 				"no fixture for generic struct %s, whose type arguments a fixture cannot pick", s.Name).
-				WithHints(ignoreHint))
+				WithHints(skipHint))
 		default:
 			if f, ok := lockedField(s); ok {
 				diags = append(diags, diag.Warningf(s.Pos,
 					"no fixture for %s, whose field %s (%s) must not be copied, as a fixture returns a copy",
 					s.Name, f.Name, types.TypeString(f.Type, qualifierFor(s.Named.Obj().Pkg()))).
-					WithHints(ignoreHint))
+					WithHints(skipHint))
 				continue
 			}
 			found = append(found, s)
@@ -65,6 +70,20 @@ func targets(fset *token.FileSet, structs []scan.Struct, exclude []string) ([]sc
 
 	slices.SortFunc(found, func(a, b scan.Struct) int { return cmp.Compare(a.Name, b.Name) })
 	return found, append(diags, unknownExcludes(exclude, exported)...)
+}
+
+// badArgs reports d, a //kanna:fixture whose arguments are not skip, the one
+// argument it takes.
+func badArgs(d directive.Directive) diag.Diag {
+	got := "nothing"
+	if d.Args != "" {
+		got = strconv.Quote(d.Args)
+	}
+	e := diag.Errorf(d.Pos, "//kanna:%s takes %s, got %s", directiveKey, skip, got)
+	if want, ok := suggest.Closest(d.Args, []string{skip}); ok {
+		e = e.WithHints(fmt.Sprintf("did you mean %q?", "//kanna:"+directiveKey+" "+want))
+	}
+	return e
 }
 
 // unknownExcludes warns about each name in exclude that is not among exported,

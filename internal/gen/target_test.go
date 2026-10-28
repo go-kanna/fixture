@@ -41,7 +41,7 @@ type Session struct {
 	ID int64
 }
 
-//kanna:ignore
+//kanna:fixture skip
 type Internal struct{}
 
 type Status string
@@ -132,7 +132,7 @@ type Page[T any] struct {
 }
 `,
 			want: "test.go:3:6: warning: no fixture for generic struct Page, whose type arguments a fixture cannot pick\n" +
-				"  mark it //kanna:ignore to leave it out without a warning",
+				"  mark it //kanna:fixture skip to leave it out without a warning",
 		},
 		{
 			name: "a mutex",
@@ -147,7 +147,7 @@ type Cache struct {
 `,
 			want: "test.go:5:6: warning: no fixture for Cache, whose field mu (sync.Mutex) must not be copied, " +
 				"as a fixture returns a copy\n" +
-				"  mark it //kanna:ignore to leave it out without a warning",
+				"  mark it //kanna:fixture skip to leave it out without a warning",
 		},
 		{
 			name: "an embedded mutex",
@@ -251,7 +251,7 @@ func TestTargets_LeftOutSilently(t *testing.T) {
 
 import "sync"
 
-//kanna:ignore
+//kanna:fixture skip
 type Page[T any] struct{}
 
 type Cache struct {
@@ -274,27 +274,55 @@ func TestTargets_Directive(t *testing.T) {
 		name  string
 		src   string
 		names []string
-		want  string
+		diags []string
 	}{
 		{
 			name: "misspelled",
 			src: `package test
 
-//kanna:ignor
+//kanna:fixtur skip
 type Internal struct{}
 `,
 			names: []string{"Internal"},
-			want: `test.go:3:1: warning: "//kanna:ignor" is not recognized as a directive
-  did you mean "//kanna:ignore"?`,
+			diags: []string{`test.go:3:1: warning: "//kanna:fixtur skip" is not recognized as a directive
+  did you mean "//kanna:fixture skip"?`},
 		},
 		{
-			name: "arguments",
+			name: "no argument",
 			src: `package test
 
-//kanna:ignore please
+//kanna:fixture
 type Internal struct{}
 `,
-			want: `test.go:3:1: error: //kanna:ignore takes no arguments, got "please"`,
+			diags: []string{"test.go:3:1: error: //kanna:fixture takes skip, got nothing"},
+		},
+		{
+			name: "an unknown argument",
+			src: `package test
+
+//kanna:fixture please
+type Internal struct{}
+`,
+			diags: []string{`test.go:3:1: error: //kanna:fixture takes skip, got "please"`},
+		},
+		{
+			name: "a misspelled argument",
+			src: `package test
+
+//kanna:fixture skp
+type Internal struct{}
+`,
+			diags: []string{`test.go:3:1: error: //kanna:fixture takes skip, got "skp"
+  did you mean "//kanna:fixture skip"?`},
+		},
+		{
+			name: "the old spelling, which is not read",
+			src: `package test
+
+//kanna:ignore
+type Internal struct{}
+`,
+			names: []string{"Internal"},
 		},
 	}
 
@@ -306,8 +334,8 @@ type Internal struct{}
 			if !slices.Equal(names, tt.names) {
 				t.Errorf("targets = %q, want %q", names, tt.names)
 			}
-			if len(diags) != 1 || !strings.HasPrefix(diags[0], tt.want) {
-				t.Errorf("diagnostics = %q, want one starting %q", diags, tt.want)
+			if !slices.Equal(diags, tt.diags) {
+				t.Errorf("diagnostics = %q, want %q", diags, tt.diags)
 			}
 		})
 	}
