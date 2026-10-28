@@ -115,6 +115,7 @@ func Fill(fset *token.FileSet, pkgs []*packages.Package) (map[string][]string, [
 		imports:  gofile.New("kanna-fixture", "example.com/fixture", "fixture"),
 		targets:  map[*types.TypeName]bool{},
 		generate: "mustGenerate",
+		orZero:   "orZero",
 		n:        "n",
 		f:        "f",
 	}
@@ -161,6 +162,7 @@ func FillField(name string, t types.Type, tag string) string {
 	fl := &filler{
 		imports:  gofile.New("kanna-fixture", "example.com/fixture", "fixture"),
 		generate: "mustGenerate",
+		orZero:   "orZero",
 		n:        "n",
 		f:        "f",
 	}

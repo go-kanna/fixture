@@ -95,6 +95,20 @@ func TestGenerated_Valid(t *testing.T) {
 	}
 }
 
+// A value type is made by its constructor, from what a field named after the
+// type would hold, and left zero when its rule rejects that.
+func TestGenerated_ValueTypes(t *testing.T) {
+	t.Parallel()
+
+	c := fixture.Contact()
+	if !email.MatchString(c.Email.String()) {
+		t.Errorf("Email = %q, want an address its constructor accepted", c.Email)
+	}
+	if c.Since != (model.Since{}) {
+		t.Errorf("Since = %v, want the zero value its constructor's rejection leaves", c.Since)
+	}
+}
+
 func TestGenerated_Faked(t *testing.T) {
 	t.Parallel()
 

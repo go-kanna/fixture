@@ -130,6 +130,7 @@ Every call takes the next number n of its type, starting at 1, and each field ta
 | tagged `fake`                                                           | see [The fake tag](#the-fake-tag)                                       |
 | a struct that gets a fixture in this run                                | that fixture: `Author: User()`. One that would recur stays zero         |
 | a named type with constants declared beside it                          | the first constant that is not the zero value: `model.RoleAdmin`        |
+| a value type of [kanna-value](https://github.com/go-kanna/value)        | its constructor's, of what a field named after it would hold, or zero   |
 | an integer or a float                                                   | n, wrapping around in a type too narrow for it                          |
 | a string                                                                | the field's name and n: `slug-1`, `first-name-1`                        |
 | a string named `…Email`, `…URL`, or `…UUID`                             | that format: `email-1@example.com`, `https://example.com/url-1`, a UUID |
@@ -242,6 +243,13 @@ one by the next `go generate`.
 
 `-exclude` does the same from the command line, for a package whose source you do not write, such as the models sqlc
 generates. A name it lists that the package does not declare gets a warning.
+
+A struct marked `//kanna:value` gets no fixture either, and says nothing: it is a value type of
+[kanna-value](https://github.com/go-kanna/value), whose one field is unexported and whose values are made through its
+constructor. A field of such a type is made with that constructor, of what a field named after the type would hold:
+`orZero(model.NewEmail(fmt.Sprintf("email-%d@example.com", n)))` for an `Email`. A value the type's rule rejects leaves
+the zero value, as one never given, rather than a panic, since a fixture is made before its setters run and a setter
+could not get past one; set such a field with `MustX` in a setter.
 
 Skipped with a warning: a generic struct, for which a fixture has no type arguments to pick, and a struct that must not
 be copied, such as one holding a `sync.Mutex`, since a fixture returns a value. A protobuf message is one of these, as

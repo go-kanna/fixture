@@ -330,6 +330,8 @@ func TestFill_Fixtures(t *testing.T) {
 
 	got, diags := fill(t, `package model
 
+import "time"
+
 type User struct {
 	Name    string
 	Home    *Address `+"`"+`validate:"required"`+"`"+`
@@ -367,6 +369,60 @@ type Post struct {
 	Base
 	Title string `+"`"+`fake:"-"`+"`"+`
 }
+
+//kanna:value
+type Email struct{ s string }
+
+func (e Email) String() string { return e.s }
+
+func NewEmail(s string) (Email, error) { return Email{s: s}, nil }
+
+//kanna:value
+type Since struct{ t time.Time }
+
+func (s Since) Time() time.Time { return s.t }
+
+func NewSince(t time.Time) (Since, error) { return Since{t: t}, nil }
+
+// Lookalike has the shape of a value type but no constructor, so it is a struct
+// like any other, with a fixture of its own.
+type Lookalike struct{ s string }
+
+func (l Lookalike) String() string { return l.s }
+
+// NoAccessor, Unnamed, and WrongCtor fall short of a value type each, so each
+// is a struct like any other too.
+type NoAccessor struct{ s string }
+
+type Unnamed struct{ s []string }
+
+type WrongCtor struct{ s string }
+
+func (w WrongCtor) String() string { return w.s }
+
+func NewWrongCtor(s string) WrongCtor { return WrongCtor{s: s} }
+
+// Bag is a value type holding a map, which an optional field leaves nil, and
+// so a Bag is left zero.
+type Bag struct{ m Labels }
+
+type Labels map[string]string
+
+func (b Bag) Labels() Labels { return b.m }
+
+func NewBag(m Labels) (Bag, error) { return Bag{m: m}, nil }
+
+type Contact struct {
+	Email      Email
+	Backup     *Email
+	Primary    *Email `+"`"+`validate:"required"`+"`"+`
+	Since      Since
+	Lookalike  Lookalike
+	NoAccessor NoAccessor
+	Unnamed    Unnamed
+	WrongCtor  WrongCtor
+	Bag        Bag
+}
 `)
 
 	// No fixture calls one that would call it back: User's calling Address's,
@@ -392,6 +448,19 @@ type Post struct {
 		"Readers: []model.User{User(), User()}",
 	})
 	checkFill(t, got, "Post", []string{"Base: Base()"})
+	// A value type of kanna-value has no fixture of its own: its constructor is
+	// called with what a field named after the type would hold, and an optional
+	// pointer to one stays nil.
+	checkFill(t, got, "Contact", []string{
+		`Email: orZero(model.NewEmail(fmt.Sprintf("email-%d@example.com", n)))`,
+		`Primary: new(orZero(model.NewEmail(fmt.Sprintf("email-%d@example.com", n))))`,
+		"Since: orZero(model.NewSince(time.Date(2000, time.January, 1, 0, 0, int(n), 0, time.UTC)))",
+		"Lookalike: Lookalike()",
+		"NoAccessor: NoAccessor()",
+		"Unnamed: Unnamed()",
+		"WrongCtor: WrongCtor()",
+		"uses n",
+	})
 	if len(diags) > 0 {
 		t.Errorf("diagnostics = %q, want none", diags)
 	}
