@@ -48,20 +48,24 @@ func emit(
 	// gofile hands out the rest of the top-level names before any import or
 	// local, from a scope of their own.
 	top := f.Scope()
-	fl.generate = top.Name("mustGenerate")
+	fl.generate, fl.orZero = top.Name("mustGenerate"), top.Name("orZero")
 	counters := make([]string, len(targets))
 	for i, s := range targets {
 		counters[i] = top.Name("seq" + s.Name)
 	}
 
-	var generates bool
+	var generates, usesOrZero bool
 	for i, s := range targets {
 		filled, ds := fl.fixture(f, s, counters[i])
 		diags = append(diags, ds...)
 		generates = generates || filled.generates
+		usesOrZero = usesOrZero || filled.usesOrZero
 	}
 	if generates {
 		writeGenerate(f, fl.generate)
+	}
+	if usesOrZero {
+		writeOrZero(f, fl.orZero)
 	}
 	return f, diags
 }
@@ -114,6 +118,17 @@ func seed(s scan.Struct) uint64 {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(s.PkgPath + "." + s.Name)) // a hash takes every write
 	return h.Sum64()
+}
+
+// writeOrZero writes the helper named name, which keeps what the constructor
+// of a value type returns where only one value can go, such as in a composite
+// literal, or the zero value when the constructor rejects what it was given.
+func writeOrZero(f *gofile.File, name string) {
+	scope := f.Scope()
+	v, err := scope.Name("v"), scope.Name("err")
+	fmt.Fprintf(f, "func %s[T any](%s T, %s error) T {\n", name, v, err)
+	fmt.Fprintf(f, "if %s != nil {\nvar zero T\nreturn zero\n}\n", err)
+	fmt.Fprintf(f, "return %s\n}\n", v)
 }
 
 // writeGenerate writes the helper named name, which calls Faker.Generate where

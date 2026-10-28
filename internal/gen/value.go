@@ -36,8 +36,9 @@ type expr struct {
 	typ types.Type
 
 	// usesN, usesF, and generates report whether it calls for the number of
-	// the fixture, its faker, and the helper calling Faker.Generate.
-	usesN, usesF, generates bool
+	// the fixture, its faker, and the helper calling Faker.Generate; usesOrZero,
+	// for the helper keeping what a value type's constructor returns.
+	usesN, usesF, generates, usesOrZero bool
 }
 
 // assignment sets field to value.
@@ -54,8 +55,10 @@ type filled struct {
 	copies []assignment
 
 	// usesN, usesF, and generates report whether the values call for the
-	// number of the fixture, its faker, and the helper calling Faker.Generate.
-	usesN, usesF, generates bool
+	// number of the fixture, its faker, and the helper calling Faker.Generate;
+	// usesOrZero, for the helper keeping what a value type's constructor
+	// returns.
+	usesN, usesF, generates, usesOrZero bool
 }
 
 // filler works out the values of the fixtures of one generated file.
@@ -65,8 +68,9 @@ type filler struct {
 	// targets are the structs that get a fixture, by the name of their type.
 	targets map[*types.TypeName]bool
 
-	// generate names the helper that calls Faker.Generate.
-	generate string
+	// generate names the helper that calls Faker.Generate, and orZero the one
+	// that keeps what a value type's constructor returns.
+	generate, orZero string
 
 	// n and f are the names the fixture being worked out gives its number and
 	// its faker.
@@ -121,6 +125,7 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 		out.usesN = out.usesN || e.usesN
 		out.usesF = out.usesF || e.usesF
 		out.generates = out.generates || e.generates
+		out.usesOrZero = out.usesOrZero || e.usesOrZero
 	}
 	return out, diags
 }
@@ -284,9 +289,13 @@ func rest(wants []want) []want {
 }
 
 // named works out the value of a named type that has one of its own: a struct
-// with a fixture, time.Time, a UUID, or a type with constants declared beside
-// it. It reports false for any other.
+// with a fixture, time.Time, a UUID, a value type of kanna-value, or a type
+// with constants declared beside it. It reports false for any other.
 func (fl *filler) named(s scan.Struct, t *types.Named, w want) (expr, bool) {
+	if v, ok := valueTypeOf(t); ok {
+		return fl.valueType(s, v, w)
+	}
+
 	switch {
 	case fl.targets[t.Obj()]:
 		if fl.reaches(t.Obj(), s.Named.Obj()) {
@@ -314,6 +323,23 @@ func (fl *filler) named(s scan.Struct, t *types.Named, w want) (expr, bool) {
 		return expr{text: fl.imports.Qualifier(c.Pkg()) + "." + c.Name(), typ: t}, true
 	}
 	return expr{}, false
+}
+
+// valueType works out a value of v, a value type of kanna-value: its
+// constructor called with what a field named after the type would hold, kept if
+// the rule accepts it. A rule the guess breaks leaves the zero
+// value, as one never given, rather than a panic no setter could get past, as
+// the fixture is made before its setters run.
+func (fl *filler) valueType(s scan.Struct, v valueType, w want) (expr, bool) {
+	e, ok := fl.value(s, v.held, []want{w}, v.named.Obj().Name())
+	if !ok {
+		return expr{}, false
+	}
+	e = fl.convert(e, v.held)
+	e.text = fl.orZero + "(" + fl.imports.Qualifier(v.ctor.Pkg()) + "." + v.ctor.Name() + "(" + e.text + "))"
+	e.typ = v.named
+	e.usesOrZero = true
+	return e, true
 }
 
 // firstConstant returns the first constant of type t declared in its package

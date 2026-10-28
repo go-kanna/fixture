@@ -34,6 +34,22 @@ func Article(setters ...func(*model.Article)) model.Article {
 	return x
 }
 
+var seqContact atomic.Int64
+
+// Contact returns a new model.Contact with every field it can fill set, then
+// applies setters in order.
+func Contact(setters ...func(*model.Contact)) model.Contact {
+	n := seqContact.Add(1)
+	x := model.Contact{
+		Email: orZero(model.NewEmail(fmt.Sprintf("email-%d@example.com", n))),
+		Since: orZero(model.NewSince(time.Date(2000, time.January, 1, 0, 0, int(n), 0, time.UTC))),
+	}
+	for _, set := range setters {
+		set(&x)
+	}
+	return x
+}
+
 // Empty returns a new model.Empty with every field it can fill set, then
 // applies setters in order.
 func Empty(setters ...func(*model.Empty)) model.Empty {
@@ -123,4 +139,11 @@ func mustGenerate(f *gofakeit.Faker, template string) string {
 		panic(err)
 	}
 	return s
+}
+func orZero[T any](v T, err error) T {
+	if err != nil {
+		var zero T
+		return zero
+	}
+	return v
 }

@@ -2,7 +2,10 @@
 // from: a field of each kind the generator fills.
 package model
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 type Role string
 
@@ -90,3 +93,29 @@ type home struct {
 type Internal struct {
 	Token string
 }
+
+// Contact holds value types of kanna-value, which have no fixtures of their
+// own: each is made by its constructor.
+type Contact struct {
+	Email Email
+	Since Since
+}
+
+// Email is a value type as kanna-value generates one, down to what a fixture
+// calls: the accessor its shape is known by, and the constructor.
+//
+//kanna:value
+type Email struct{ s string }
+
+func (e Email) String() string { return e.s }
+
+func NewEmail(s string) (Email, error) { return Email{s: s}, nil }
+
+// Since rejects every time, so a fixture keeps its zero value.
+//
+//kanna:value
+type Since struct{ t time.Time }
+
+func (s Since) Time() time.Time { return s.t }
+
+func NewSince(time.Time) (Since, error) { return Since{}, errors.New("since: rejected") }
