@@ -45,6 +45,11 @@ type Session struct {
 type Internal struct{}
 
 type Status string
+
+// Email is a value type of kanna-value, made through its constructor.
+//
+//kanna:value
+type Email struct{ s string }
 `)
 
 	if want := []string{"Article", "Session", "User"}; !slices.Equal(names, want) {

@@ -21,6 +21,11 @@ const directiveKey = "fixture"
 // skip is the argument of //kanna:fixture that leaves a struct out.
 const skip = "skip"
 
+// valueKey spells //kanna:value, which marks a value type of kanna-value. Its
+// one field is unexported, so a fixture could not set it, and what holds it is
+// made through its constructor rather than field by field.
+const valueKey = "value"
+
 // skipHint tells how to leave a struct out without a warning.
 const skipHint = "mark it //kanna:" + directiveKey + " " + skip + " to leave it out without a warning"
 
@@ -43,6 +48,11 @@ func targets(fset *token.FileSet, structs []scan.Struct, exclude []string) ([]sc
 			continue
 		}
 		exported = append(exported, s.Name)
+
+		// kanna-value reports what is wrong with the line itself.
+		if v, _ := directive.Find(fset, s.Doc, valueKey); v.Found {
+			continue
+		}
 
 		d, ds := directive.Find(fset, s.Doc, directiveKey)
 		diags = append(diags, ds...)

@@ -367,6 +367,15 @@ type Post struct {
 	Base
 	Title string `+"`"+`fake:"-"`+"`"+`
 }
+
+//kanna:value
+type Email struct{ s string }
+
+type Contact struct {
+	Email   Email
+	Backup  *Email
+	Primary *Email `+"`"+`validate:"required"`+"`"+`
+}
 `)
 
 	// No fixture calls one that would call it back: User's calling Address's,
@@ -392,6 +401,9 @@ type Post struct {
 		"Readers: []model.User{User(), User()}",
 	})
 	checkFill(t, got, "Post", []string{"Base: Base()"})
+	// A value type of kanna-value has no fixture, so it is left zero, as one
+	// never given; a pointer the rules require points to the zero value.
+	checkFill(t, got, "Contact", []string{"Primary: new(model.Email)"})
 	if len(diags) > 0 {
 		t.Errorf("diagnostics = %q, want none", diags)
 	}
