@@ -287,8 +287,11 @@ module writes `fixture/` there. Paths are relative to the directory `go generate
 
 The destination is a package other than the model, which its fixtures import. It may hold hand-written files too: their
 package is the one the generated file joins, and `-package` naming another is an error; a fixture whose name they
-already declare stops generation. A run that succeeds prints nothing. A file named `fixture_gen.go` without the
-generated-code header is never touched.
+already declare stops generation. They may call the fixtures before the first run has written them: kanna-fixture
+type-checks them once more with what it is about to write in place, and writes nothing while they do not compile with
+it, so a mistake a missing fixture hid is reported then, and a fixture they still call is not removed. Tests in other
+packages are not loaded, so `go vet` tells of a fixture they call that is gone. A run that succeeds prints nothing. A
+file named `fixture_gen.go` without the generated-code header is never touched.
 
 ## Example
 

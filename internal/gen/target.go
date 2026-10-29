@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-kanna/internal/diag"
 	"github.com/go-kanna/internal/directive"
+	"github.com/go-kanna/internal/packages"
 	"github.com/go-kanna/internal/scan"
 	"github.com/go-kanna/internal/suggest"
 )
@@ -67,6 +68,10 @@ func targets(fset *token.FileSet, structs []scan.Struct, exclude []string) ([]sc
 				"no fixture for generic struct %s, whose type arguments a fixture cannot pick", s.Name).
 				WithHints(skipHint))
 		default:
+			if i := slices.IndexFunc(s.Fields, func(f scan.Field) bool { return packages.Invalid(f.Type) }); i >= 0 {
+				diags = append(diags, packages.NotTypeChecked(s.Fields[i].Pos))
+				continue
+			}
 			if f, ok := lockedField(s); ok {
 				diags = append(diags, diag.Warningf(s.Pos,
 					"no fixture for %s, whose field %s (%s) must not be copied, as a fixture returns a copy",
