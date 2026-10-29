@@ -18,6 +18,7 @@ import (
 	"github.com/brianvoe/gofakeit/v7"
 	"github.com/go-kanna/internal/diag"
 	"github.com/go-kanna/internal/scan"
+	"github.com/go-kanna/internal/valuetype"
 )
 
 // imports names the packages the expressions use, as the generated file
@@ -292,7 +293,9 @@ func rest(wants []want) []want {
 // with a fixture, time.Time, a UUID, a value type of kanna-value, or a type
 // with constants declared beside it. It reports false for any other.
 func (fl *filler) named(s scan.Struct, t *types.Named, w want) (expr, bool) {
-	if v, ok := valueTypeOf(t); ok {
+	// The fixtures live in another package, so only an exported value type,
+	// and so an exported constructor, can be made there.
+	if v, ok := valuetype.Of(t); ok && t.Obj().Exported() && v.Constructor != nil {
 		return fl.valueType(s, v, w)
 	}
 
@@ -330,14 +333,14 @@ func (fl *filler) named(s scan.Struct, t *types.Named, w want) (expr, bool) {
 // the rule accepts it. A rule the guess breaks leaves the zero
 // value, as one never given, rather than a panic no setter could get past, as
 // the fixture is made before its setters run.
-func (fl *filler) valueType(s scan.Struct, v valueType, w want) (expr, bool) {
-	e, ok := fl.value(s, v.held, []want{w}, v.named.Obj().Name())
+func (fl *filler) valueType(s scan.Struct, v valuetype.Type, w want) (expr, bool) {
+	e, ok := fl.value(s, v.Held, []want{w}, v.Named.Obj().Name())
 	if !ok {
 		return expr{}, false
 	}
-	e = fl.convert(e, v.held)
-	e.text = fl.orZero + "(" + fl.imports.Qualifier(v.ctor.Pkg()) + "." + v.ctor.Name() + "(" + e.text + "))"
-	e.typ = v.named
+	e = fl.convert(e, v.Held)
+	e.text = fl.orZero + "(" + fl.imports.Qualifier(v.Constructor.Pkg()) + "." + v.Constructor.Name() + "(" + e.text + "))"
+	e.typ = v.Named
 	e.usesOrZero = true
 	return e, true
 }
