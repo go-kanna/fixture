@@ -21,7 +21,7 @@ go get -tool github.com/go-kanna/fixture/cmd/kanna-fixture
 
 The line also requires [gofakeit](https://github.com/brianvoe/gofakeit), which the generated code calls for the fields
 that ask for it and the generator uses to check their templates. Fixtures for a package whose fields ask for nothing
-import only the standard library.
+do not import it.
 
 ## Use
 
@@ -132,13 +132,13 @@ Every call takes the next number n of its type, starting at 1, and each field ta
 | a struct that gets a fixture in this run                                | that fixture: `Author: User()`. One that would recur stays zero         |
 | a named type with constants declared beside it                          | the first constant that is not the zero value: `model.RoleAdmin`        |
 | a value type of [kanna-value](https://github.com/go-kanna/value)        | its constructor's, of what a field named after it would hold, or zero   |
-| an integer or a float                                                   | n, wrapping around in a type too narrow for it                          |
-| a string                                                                | the field's name and n: `slug-1`, `first-name-1`                        |
-| a string named `…Email`, `…URL`, or `…UUID`                             | that format: `email-1@example.com`, `https://example.com/url-1`, a UUID |
-| a bool                                                                  | `false`                                                                 |
 | `time.Time`                                                             | n seconds past 2000-01-01T00:00:00Z                                     |
 | `uuid.UUID`, from the standard library or `github.com/google/uuid`      | a UUID ending in n: `00000000-0000-4000-8000-000000000001`              |
-| any other named type of a basic kind                                    | the value of its kind, converted: `model.UserID(1)`                     |
+| any other named type of a basic kind                                    | the value of its kind, as below, converted: `model.UserID(1)`           |
+| an integer or a float                                                   | n, wrapping around in a type too narrow for it                          |
+| a string named `…Email`, `…URL`, or `…UUID`                             | that format: `email-1@example.com`, `https://example.com/url-1`, a UUID |
+| a string                                                                | the field's name and n: `slug-1`, `first-name-1`                        |
+| a bool                                                                  | `false`                                                                 |
 | a pointer, slice, map, interface, channel, func, array, or other struct | the zero value                                                          |
 
 Then [the rules of its `validate` tag](#rules) adjust the value. Unexported fields are left alone, since the fixtures
@@ -291,8 +291,8 @@ package is the one the generated file joins, and `-package` naming another is an
 already declare stops generation. They may call the fixtures before the first run has written them: kanna-fixture
 type-checks them once more with what it is about to write in place, and writes nothing while they do not compile with
 it, so a mistake a missing fixture hid is reported then, and a fixture they still call is not removed. Tests in other
-packages are not loaded, so `go vet` tells of a fixture they call that is gone. A run that succeeds prints nothing. A
-file named `fixture_gen.go` without the generated-code header is never touched.
+packages are not loaded, so `go vet` tells of a fixture they call that is gone. A run that succeeds prints nothing but
+its warnings. A file named `fixture_gen.go` without the generated-code header is never touched.
 
 ## Example
 
