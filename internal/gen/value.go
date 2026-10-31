@@ -233,14 +233,14 @@ func (fl *filler) value(s scan.Struct, t types.Type, wants []want, name string) 
 		}
 		return expr{text: "new(" + types.TypeString(u.Elem(), fl.imports.Qualifier) + ")", typ: t}, true
 	case *types.Slice:
-		k := w.minLen
-		if w.required {
-			k = max(k, 1)
-		}
-		if k == 0 {
+		k := w.elements()
+		if k == 0 && !w.required {
 			return expr{}, false
 		}
 		typ := types.TypeString(t, fl.imports.Qualifier)
+		if k == 0 {
+			return expr{text: typ + "{}", typ: t}, true
+		}
 		e, ok := fl.value(s, u.Elem(), rest(wants), name)
 		if !ok {
 			return expr{text: "make(" + typ + ", " + strconv.Itoa(k) + ")", typ: t}, true
@@ -729,7 +729,7 @@ func (fl *filler) calls(t types.Type, wants []want) []*types.TypeName {
 			return fl.calls(u.Elem(), wants)
 		}
 	case *types.Slice:
-		if w.required || w.minLen > 0 {
+		if w.elements() > 0 {
 			return fl.calls(u.Elem(), rest(wants))
 		}
 	case *types.Struct:

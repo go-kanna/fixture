@@ -466,6 +466,58 @@ type Contact struct {
 	}
 }
 
+// A slice that has to be there and may hold nothing is empty, and not nil. What
+// would otherwise fill it is not called, so it closes no cycle of fixtures.
+func TestFill_SlicesWithNoRoom(t *testing.T) {
+	t.Parallel()
+
+	got, diags := fill(t, `package model
+
+type IDs []int
+
+type Node struct {
+	Name string
+}
+
+type Team struct {
+	Lead *Lead `+"`"+`validate:"required"`+"`"+`
+}
+
+type Lead struct {
+	Teams []Team `+"`"+`validate:"required,max=0"`+"`"+`
+}
+
+type Slices struct {
+	Max      []int     `+"`"+`validate:"required,max=0"`+"`"+`
+	Len      []string  `+"`"+`validate:"required,len=0"`+"`"+`
+	Lt       []int     `+"`"+`validate:"required,lt=1"`+"`"+`
+	Named    IDs       `+"`"+`validate:"required,max=0"`+"`"+`
+	Pointer  *[]int    `+"`"+`validate:"required,max=0"`+"`"+`
+	Dive     []Node    `+"`"+`validate:"required,max=0,dive,required"`+"`"+`
+	Optional []int     `+"`"+`validate:"max=0"`+"`"+`
+	Room     []int     `+"`"+`validate:"required,max=1"`+"`"+`
+	Bounded  []int     `+"`"+`validate:"required,min=2,max=3"`+"`"+`
+}
+`)
+
+	checkFill(t, got, "Slices", []string{
+		"Max: []int{}",
+		"Len: []string{}",
+		"Lt: []int{}",
+		"Named: model.IDs{}",
+		"Pointer: new([]int{})",
+		"Dive: []model.Node{}",
+		"Room: []int{int(n)}",
+		"Bounded: []int{int(n), int(n)}",
+		"uses n",
+	})
+	checkFill(t, got, "Team", []string{"Lead: new(Lead())"})
+	checkFill(t, got, "Lead", []string{"Teams: []model.Team{}"})
+	if len(diags) > 0 {
+		t.Errorf("diagnostics = %q, want none", diags)
+	}
+}
+
 // A type the fixtures cannot name from their own package leaves its field
 // zero, as an unexported field is, whatever the tags ask.
 func TestFill_Unnameable(t *testing.T) {

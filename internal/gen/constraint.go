@@ -43,6 +43,16 @@ type want struct {
 	pattern string
 }
 
+// elements returns how many elements a slice that w asks for holds. required
+// takes one, unless the rules leave no room for it: all it asks of a slice is
+// not to be nil.
+func (w want) elements() int {
+	if w.required && w.maxLen != 0 {
+		return max(w.minLen, 1)
+	}
+	return w.minLen
+}
+
 // wantsOf reads the validate tag in tag, of a field of type t: what it asks of
 // the field, then of the elements after each dive. It returns nil for a field
 // without one.

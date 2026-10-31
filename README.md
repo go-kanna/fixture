@@ -182,7 +182,7 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 | Rule                                               | Value                                                                                                     |
 |----------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
 | `required`                                         | not the zero value: `true`, a number other than 0, a pointer to a value, a slice of one element           |
-| `min`, `max`, `len` on strings and slices          | a length within them: `password-001` for `min=12`, k elements for `min=k`                                 |
+| `min`, `max`, `len` on strings and slices          | a length within them: `password-001` for `min=12`, k elements for `min=k`, `[]T{}` for `required,max=0`   |
 | `gt`, `gte`, `lt`, `lte`, `min`, `max` on integers | n, counted from the lower bound, or from 1, and wrapping within the upper: `gt=0` → 1, 2, 3, …            |
 | `gt`, `gte`, `lt`, `lte`, `min`, `max` on floats   | the lowest value they allow, or the highest without a lower bound: `gt=0` → `1`                           |
 | `eq`                                               | that value                                                                                                |
