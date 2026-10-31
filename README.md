@@ -11,7 +11,7 @@ kanna-fixture writes a constructor for every struct of a package, with every fie
 only what it cares about. Fields are numbered — `slug-1`, `email-1@example.com` — so no two fixtures collide, and
 filled to pass the rules their `validate` tags declare; a field tagged `fake` takes a gofakeit template instead.
 
-Part of the [kanna](https://github.com/go-kanna/kanna) family of code generators. Requires Go 1.26.
+Part of the [kanna](https://go-kanna.github.io/) family of code generators. Requires Go 1.26.
 
 ## Install
 
