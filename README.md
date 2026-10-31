@@ -5,6 +5,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/go-kanna/fixture.svg)](https://pkg.go.dev/github.com/go-kanna/fixture)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/tag/go-kanna/fixture?label=release&sort=semver)](https://github.com/go-kanna/fixture/tags)
+[![日本語](https://img.shields.io/badge/lang-%E6%97%A5%E6%9C%AC%E8%AA%9E-blue.svg)](README.ja.md)
 
 kanna-fixture writes a constructor for every struct of a package, with every field already filled, so a test states
 only what it cares about. Fields are numbered — `slug-1`, `email-1@example.com` — so no two fixtures collide, and
