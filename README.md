@@ -21,7 +21,7 @@ go get -tool github.com/go-kanna/fixture/cmd/kanna-fixture
 
 The line also requires [gofakeit](https://github.com/brianvoe/gofakeit), which the generated code calls for the fields
 that ask for it and the generator uses to check their templates. Fixtures for a package whose fields ask for nothing
-import only the standard library.
+do not import it.
 
 ## Use
 

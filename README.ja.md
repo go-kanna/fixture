@@ -17,7 +17,7 @@ kanna-fixture は、パッケージのすべての構造体に、全フィール
 go get -tool github.com/go-kanna/fixture/cmd/kanna-fixture
 ```
 
-上のコマンドは [gofakeit](https://github.com/brianvoe/gofakeit) も依存に追加します。生成コードは gofakeit を必要とするフィールドのためにこれを呼び出し、ジェネレータはそれらのテンプレートのチェックにこれを使います。どのフィールドも gofakeit を必要としないパッケージのフィクスチャは、標準ライブラリだけを import します。
+上のコマンドは [gofakeit](https://github.com/brianvoe/gofakeit) も依存に追加します。生成コードは gofakeit を必要とするフィールドのためにこれを呼び出し、ジェネレータはそれらのテンプレートのチェックにこれを使います。どのフィールドも gofakeit を必要としないパッケージのフィクスチャは、gofakeit を import しません。
 
 ## 使い方
 
