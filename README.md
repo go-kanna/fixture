@@ -291,8 +291,8 @@ package is the one the generated file joins, and `-package` naming another is an
 already declare stops generation. They may call the fixtures before the first run has written them: kanna-fixture
 type-checks them once more with what it is about to write in place, and writes nothing while they do not compile with
 it, so a mistake a missing fixture hid is reported then, and a fixture they still call is not removed. Tests in other
-packages are not loaded, so `go vet` tells of a fixture they call that is gone. A run that succeeds prints nothing. A
-file named `fixture_gen.go` without the generated-code header is never touched.
+packages are not loaded, so `go vet` tells of a fixture they call that is gone. A run that succeeds prints nothing but
+its warnings. A file named `fixture_gen.go` without the generated-code header is never touched.
 
 ## Example
 
