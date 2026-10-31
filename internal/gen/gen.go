@@ -51,7 +51,8 @@ func Command() cli.Command[config] {
 				return nil
 			})
 		},
-		Run: run,
+		Run:  run,
+		Deps: reportDeps,
 	}
 }
 
@@ -59,21 +60,8 @@ func run(dir string, cfg config, patterns []string) ([]output.Change, []diag.Dia
 	if len(patterns) > 1 {
 		return nil, []diag.Diag{diag.Errorf(token.Position{}, "%s reads one package, got %d", generator, len(patterns))}
 	}
-	dest := filepath.Join(dir, cfg.destination)
-	if filepath.IsAbs(cfg.destination) {
-		dest = filepath.Clean(cfg.destination)
-	}
-
-	// Code in the destination calls the fixtures, so it is loaded too, from
-	// the same load as the source, for its types to be the source's.
-	load := patterns
-	if hasCode(dest) {
-		load = []string{".", dest}
-		if len(patterns) > 0 {
-			load[0] = patterns[0]
-		}
-	}
-	set, err := packages.Load(load, packages.Config{Dir: dir, Regenerated: []string{outputFile}})
+	dest := destination(dir, cfg)
+	set, err := packages.Load(toLoad(dest, patterns), packages.Config{Dir: dir, Regenerated: []string{outputFile}})
 	if err != nil {
 		return nil, []diag.Diag{diag.Errorf(token.Position{}, "%v", err)}
 	}
@@ -128,6 +116,27 @@ func run(dir string, cfg config, patterns []string) ([]output.Change, []diag.Dia
 		return nil, slices.Concat(diags, rds, set.SetAsideWarnings())
 	}
 	return changes, diags
+}
+
+// destination returns the directory a run in dir writes into.
+func destination(dir string, cfg config) string {
+	if filepath.IsAbs(cfg.destination) {
+		return filepath.Clean(cfg.destination)
+	}
+	return filepath.Join(dir, cfg.destination)
+}
+
+// toLoad returns what a run writing into dest loads. Code in the destination
+// calls the fixtures, so it is loaded too, from the same load as the source,
+// for its types to be the source's.
+func toLoad(dest string, patterns []string) []string {
+	if !hasCode(dest) {
+		return patterns
+	}
+	if len(patterns) > 0 {
+		return []string{patterns[0], dest}
+	}
+	return []string{".", dest}
 }
 
 // hasCode reports whether dir holds Go files other than the output and tests.
