@@ -53,6 +53,19 @@ func Author(setters ...func(*blog.Author)) blog.Author {
 	return x
 }
 
+// Invite returns a new blog.Invite with every field it can fill set, then
+// applies setters in order.
+func Invite(setters ...func(*blog.Invite)) blog.Invite {
+	x := blog.Invite{
+		Accepted: []string{},
+		Declined: []string{},
+	}
+	for _, set := range setters {
+		set(&x)
+	}
+	return x
+}
+
 var seqSignUp atomic.Int64
 
 // SignUp returns a new blog.SignUp with every field it can fill set, then

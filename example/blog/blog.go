@@ -57,6 +57,15 @@ type SignUp struct {
 	Tags     []string `json:"tags"     validate:"min=1,dive,max=20"`
 }
 
+// Invite starts with nobody on its lists. Each has to be there, which is what
+// required asks of a slice, and to hold nothing, so its fixture makes it empty.
+//
+//kanna:validate
+type Invite struct {
+	Accepted []string `json:"accepted" validate:"required,max=0"`
+	Declined []string `json:"declined" validate:"required,len=0"`
+}
+
 // Draft gets no fixture.
 //
 //kanna:fixture skip

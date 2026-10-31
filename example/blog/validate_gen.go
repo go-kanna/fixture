@@ -67,3 +67,27 @@ func (x SignUp) Validate() error {
 
 	return errs.Err()
 }
+
+// Validate checks x against the validate tags of Invite. It returns the
+// validate.Errors of every rule x breaks, or nil.
+func (x Invite) Validate() error {
+	var errs validate.Errors
+
+	if x.Accepted == nil {
+		errs.Add("accepted", validate.Blank())
+	} else {
+		if len(x.Accepted) > 0 {
+			errs.Add("accepted", validate.TooLong(0))
+		}
+	}
+
+	if x.Declined == nil {
+		errs.Add("declined", validate.Blank())
+	} else {
+		if len(x.Declined) != 0 {
+			errs.Add("declined", validate.WrongLength(0))
+		}
+	}
+
+	return errs.Err()
+}

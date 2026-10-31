@@ -38,6 +38,9 @@ func main() {
 	if err := fixture.SignUp().Validate(); err != nil {
 		panic(fmt.Sprintf("the fixture of SignUp is not valid: %v", err))
 	}
+	if err := fixture.Invite().Validate(); err != nil {
+		panic(fmt.Sprintf("the fixture of Invite is not valid: %v", err))
+	}
 	err := fixture.SignUp(func(s *blog.SignUp) { s.Email = "not an address" }).Validate()
 	out, jerr := json.Marshal(err)
 	if jerr != nil {
