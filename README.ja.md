@@ -124,7 +124,7 @@ u := fixture.User(member, func(u *model.User) { u.Age = 70 })
 | フィールド | 値 |
 |---|---|
 | `fake` タグ付き | [fake タグ](#fake-タグ)を参照 |
-| この実行でフィクスチャが生成される構造体 | そのフィクスチャ: `Author: User()`。再帰することになるものはゼロ値のまま |
+| この実行でフィクスチャが生成される構造体 | そのフィクスチャ: `Author: User()`。再帰することになるものはゼロ値のまま（`required` のポインタなら `new(T)`）で、警告する |
 | 同じパッケージにその型の定数が宣言されている名前付き型 | ゼロ値でない最初の定数: `model.RoleAdmin` |
 | [kanna-value](https://github.com/go-kanna/value) の値オブジェクト | 型と同じ名前のフィールドに入る値をコンストラクタに渡した結果、またはゼロ値 |
 | `time.Time` | 2000-01-01T00:00:00Z の n 秒後 |
@@ -165,7 +165,7 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 
 | ルール | 値 |
 |---|---|
-| `required` | ゼロ値以外: `true`、0 以外の数値、値へのポインタ、要素が 1 つのスライス |
+| `required` | ゼロ値以外: `true`、0 以外の数値、値へのポインタ、要素が 1 つのスライス、空の map |
 | 文字列とスライスの `min`、`max`、`len` | それらの範囲内の長さ: `min=12` なら `password-001`、`min=k` なら要素 k 個、`required,max=0` なら `[]T{}` |
 | 整数の `gt`、`gte`、`lt`、`lte`、`min`、`max` | 下限から（下限がなければ 1 から）数えた n。上限の範囲内で折り返す: `gt=0` → 1, 2, 3, … |
 | 浮動小数点数の `gt`、`gte`、`lt`、`lte`、`min`、`max` | 許される最小の値。下限がなければ最大の値: `gt=0` → `1` |

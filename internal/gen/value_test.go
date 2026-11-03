@@ -534,8 +534,21 @@ type Contact struct {
 		"WrongCtor: WrongCtor()",
 		"uses n",
 	})
-	if len(diags) > 0 {
-		t.Errorf("diagnostics = %q, want none", diags)
+	// Each value left zero for the cycle is warned about where it goes.
+	want := []string{
+		"test.go:15:2: warning: the fixture of User is not called here, as it would call that of Address back, " +
+			"so a zero User breaks its rules; set the field, or give it a fake tag (field Owner)",
+		"test.go:31:2: warning: the fixture of Tree is not called here, as it would call that of Tree back, " +
+			"so a zero Tree breaks its rules; set the field, or give it a fake tag (field Children)",
+		"test.go:7:2: warning: the fixture of Address is not called here, as it would call that of User back, " +
+			"so a zero Address breaks its rules; set the field, or give it a fake tag (field Home)",
+		"test.go:8:2: warning: the fixture of User is not called here, as it would call that of User back, " +
+			"so a zero User breaks its rules; set the field, or give it a fake tag (field Manager)",
+		"test.go:10:2: warning: the fixture of User is not called here, as it would call that of User back, " +
+			"so a zero User breaks its rules; set the field, or give it a fake tag (field Friends)",
+	}
+	if !slices.Equal(diags, want) {
+		t.Errorf("diagnostics =\n\t%s\nwant\n\t%s", strings.Join(diags, "\n\t"), strings.Join(want, "\n\t"))
 	}
 }
 

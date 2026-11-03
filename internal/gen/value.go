@@ -122,6 +122,7 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 		default:
 			wants := wantsOf(field.Tag, field.Type)
 			diags = append(diags, unkept(field, wants)...)
+			diags = append(diags, fl.recurring(s, field, wants)...)
 			e, ok = fl.value(s, field.Type, wants, field.Name)
 		}
 		if !ok {
@@ -179,6 +180,23 @@ func unkept(field scan.Field, wants []want) []diag.Diag {
 			warn(msg)
 		}
 		wants[i].pattern = ""
+	}
+	return diags
+}
+
+// recurring warns about the fixtures field of s would call, as the rules of
+// wants ask for a value there, but does not, since they would call the fixture
+// of s back. The value left zero in their place breaks a rule on the way back
+// to s, as a required pointer or a slice of a length to have is what leads
+// there.
+func (fl *filler) recurring(s scan.Struct, field scan.Field, wants []want) []diag.Diag {
+	var diags []diag.Diag
+	for _, n := range fl.calls(field.Type, wants) {
+		if fl.reaches(n, s.Named.Obj()) {
+			diags = append(diags, diag.Warningf(field.Pos,
+				"the fixture of %[1]s is not called here, as it would call that of %[2]s back, so a zero %[1]s "+
+					"breaks its rules; set the field, or give it a fake tag (field %[3]s)", n.Name(), s.Name, field.Name))
+		}
 	}
 	return diags
 }
