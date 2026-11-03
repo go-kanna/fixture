@@ -90,6 +90,7 @@ func run(dir string, cfg config, patterns []string) ([]output.Change, []diag.Dia
 
 	path := filepath.Join(dest, outputFile)
 	found, diags := targets(set.Fset, scan.AllStructs([]*packages.Package{pkg}), cfg.exclude)
+	diags = append(diags, unplaced(set.Fset, scan.Types([]*packages.Package{pkg}))...)
 	if diag.HasErrors(diags) {
 		return nil, packages.Stopped(deferred, diags, set.Pending(fixtures(dest, found)))
 	}

@@ -280,8 +280,9 @@ kanna-fixture [flags] [package]
 | `-destination <dir>` | write `fixture_gen.go` into dir (default `fixture`)                                              |
 | `-package <name>`    | call the package name when the destination has no Go files yet (default: the directory's name)   |
 | `-exclude <names>`   | comma-separated names of structs to skip                                                         |
-| `-check`             | verify the output is up to date instead of writing it, including that no output is left over     |
+| `-check`             | verify the output is up to date instead of writing it, including that no output is left over; `KANNA_CHECK=1` does the same |
 | `-v`                 | list the file written, removed, or left unchanged                                                |
+| `-deps`              | print what a run reads and writes as JSON, for the `kanna` command, and exit                     |
 | `-version`           | print the version                                                                                |
 
 The package defaults to the one in the current directory, so `//go:generate go tool kanna-fixture` in the model needs
