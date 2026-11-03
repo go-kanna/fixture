@@ -41,6 +41,7 @@ type want struct {
 	field   string // eqfield: the field whose value it copies
 	format  string // email, url, or uuid
 	pattern string
+	rule    string // rule=, of kanna-validate: the type whose rule it holds the value to, as written
 
 	// unknown are the rules kanna-fixture does not know, as written, which the
 	// value it fills may break.
@@ -217,7 +218,7 @@ func newReader(t types.Type) *reader {
 // needs nothing for it, as for omitempty, which only lets more values pass.
 func knows(name string) bool {
 	switch name {
-	case "required", "email", "url", "uuid", "pattern", "eqfield", "oneof",
+	case "required", "email", "url", "uuid", "pattern", "eqfield", "oneof", "rule",
 		"min", "max", "len", "eq", "ne", "gt", "gte", "lt", "lte",
 		"omitempty", "omitnil", "omitzero":
 		return true
@@ -242,6 +243,8 @@ func (r *reader) add(name, param string) {
 		r.w.format = name
 	case "pattern":
 		r.w.pattern = param
+	case "rule":
+		r.w.rule = param
 	case "eqfield":
 		r.w.field = param
 	case "oneof":

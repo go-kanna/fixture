@@ -191,7 +191,11 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 | `eqfield=Field`                                    | the other field's value                                                                                   |
 | `email`, `url`, `uuid`                             | that format, numbered within `min` and `max`: `em-0001@example.com` for `len=19`                          |
 | `pattern=regexp`, which only kanna-validate has    | a string gofakeit generates from the expression                                                           |
+| `rule=Type`, which only kanna-validate has         | the first constant of an enum, or what a field named after a value type would hold; a type with a `Validate` of its own is warned about |
 | `dive`                                             | the rules after it, for each element made                                                                 |
+
+`Type` of `rule=Type` is read as kanna-validate reads it: a bare name is a type of the struct's package, and `pkg.Type`
+one of the package the struct's file imports as `pkg`, as `_` if nothing else uses it.
 
 The rules are read to be satisfied, not checked. A rule kanna-fixture does not know, such as go-playground's
 `alphanum`, may be broken by the value it fills, so generation warns at the field and asks for a `fake` tag; of

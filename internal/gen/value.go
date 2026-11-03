@@ -18,6 +18,7 @@ import (
 	"github.com/brianvoe/gofakeit/v7"
 	"github.com/go-kanna/internal/diag"
 	"github.com/go-kanna/internal/enumtype"
+	"github.com/go-kanna/internal/qualifier"
 	"github.com/go-kanna/internal/scan"
 	"github.com/go-kanna/internal/valuetype"
 )
@@ -122,6 +123,7 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 		default:
 			wants := wantsOf(field.Tag, field.Type)
 			diags = append(diags, unkept(field, wants)...)
+			diags = append(diags, fl.unkeptRules(s, field, wants)...)
 			diags = append(diags, fl.recurring(s, field, wants)...)
 			e, ok = fl.value(s, field.Type, wants, field.Name)
 		}
@@ -182,6 +184,87 @@ func unkept(field scan.Field, wants []want) []diag.Diag {
 		wants[i].pattern = ""
 	}
 	return diags
+}
+
+// ruled works out a value of type t that passes the rule of the type w.rule
+// names: the first constant of an enum, or what a field named after a value
+// type would hold, converted to t. It reports false for a rule it cannot keep,
+// which unkeptRules warns about.
+func (fl *filler) ruled(s scan.Struct, t types.Type, w want) (expr, bool) {
+	named, err := ruleType(s, w.rule)
+	if err != nil {
+		return expr{}, false
+	}
+	if v, ok := valuetype.Of(named); ok && v.Constructor != nil {
+		w.rule = ""
+		e, ok := fl.value(s, v.Held, []want{w}, named.Obj().Name())
+		return fl.convert(e, t), ok
+	}
+	if _, ok := enumtype.Of(named); ok {
+		if c := firstConstant(fl.fset, named); c != nil {
+			return fl.convert(expr{text: fl.imports.Qualifier(c.Pkg()) + "." + c.Name(), typ: named}, t), true
+		}
+	}
+	return expr{}, false
+}
+
+// ruleType returns the type ref names, as rule=ref of kanna-validate on a field
+// of s does: a type of the package of s, or pkg.Type of the package the file of
+// s imports as pkg.
+func ruleType(s scan.Struct, ref string) (*types.Named, error) {
+	own := s.Named.Obj().Pkg()
+	pkg, name := own, ref
+	if qual, n, ok := strings.Cut(ref, "."); ok {
+		p, err := qualifier.Of(s.File, own).Lookup(qual)
+		if err != nil {
+			return nil, err //nolint:wrapcheck // it says what is wrong with the qualifier
+		}
+		pkg, name = p, n
+	}
+	tn, ok := pkg.Scope().Lookup(name).(*types.TypeName)
+	if !ok {
+		return nil, fmt.Errorf("%s declares no type %s", pkg.Name(), name)
+	}
+	named, ok := types.Unalias(tn.Type()).(*types.Named)
+	if !ok {
+		return nil, fmt.Errorf("%s is not a declared type", ref)
+	}
+	return named, nil
+}
+
+// unkeptRules warns about each rule= of wants, the rules of field of s, that the
+// fixture cannot keep: one naming no type it can read, or a type that is
+// neither an enum with a constant to take nor a value type of kanna-value,
+// such as one with a Validate method, which it does not run.
+func (fl *filler) unkeptRules(s scan.Struct, field scan.Field, wants []want) []diag.Diag {
+	var diags []diag.Diag
+	for _, w := range wants {
+		if w.rule == "" {
+			continue
+		}
+		var msg string
+		named, err := ruleType(s, w.rule)
+		switch {
+		case err != nil:
+			msg = fmt.Sprintf("kanna-fixture cannot read rule=%s: %v", w.rule, err)
+		case !fl.ruleKept(named):
+			msg = fmt.Sprintf("kanna-fixture cannot tell what passes rule=%s, which is neither an enum nor a value type",
+				w.rule)
+		default:
+			continue
+		}
+		diags = append(diags, diag.Warningf(field.Pos, "%s; give the field a fake tag (field %s)", msg, field.Name))
+	}
+	return diags
+}
+
+// ruleKept reports whether ruled fills a value for the rule of named.
+func (fl *filler) ruleKept(named *types.Named) bool {
+	if v, ok := valuetype.Of(named); ok {
+		return v.Constructor != nil
+	}
+	_, enum := enumtype.Of(named)
+	return enum && firstConstant(fl.fset, named) != nil
 }
 
 // recurring warns about the fixtures field of s would call, as the rules of
@@ -316,6 +399,11 @@ func (fl *filler) value(s scan.Struct, t types.Type, wants []want, name string) 
 		return expr{text: types.TypeString(t, fl.imports.Qualifier) + "{}", typ: t}, true
 	}
 
+	if w.rule != "" {
+		if e, ok := fl.ruled(s, t, w); ok {
+			return e, true
+		}
+	}
 	if named, ok := types.Unalias(t).(*types.Named); ok {
 		if e, ok := fl.named(s, named, w); ok {
 			return e, true
