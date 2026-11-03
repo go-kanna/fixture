@@ -17,7 +17,7 @@ require (
 )
 
 require (
-	github.com/go-kanna/fixture v0.0.14 // indirect
+	github.com/go-kanna/fixture v0.0.15 // indirect
 	github.com/go-kanna/internal v0.0.20 // indirect
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect

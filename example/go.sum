@@ -1,7 +1,7 @@
 github.com/brianvoe/gofakeit/v7 v7.18.0 h1:vn3tb6OKRUazCkzhotd8xEwz/mhkLFbDoR8OUREFm80=
 github.com/brianvoe/gofakeit/v7 v7.18.0/go.mod h1:QXuPeBw164PJCzCUZVmgpgHJ3Llj49jSLVkKPMtxtxA=
-github.com/go-kanna/fixture v0.0.14 h1:GHBhNruPuaUQ2lwfi4lBALZAxQdOGCjZu2n8d/a/fck=
-github.com/go-kanna/fixture v0.0.14/go.mod h1:oR2sFOaYlVjRD4z28KJukrc3FHESrOIUTxK2g+1ytMc=
+github.com/go-kanna/fixture v0.0.15 h1:rPe3a/J26hNvZPdcA9MEC0ZE75g53pu/8S9+bBJA0I8=
+github.com/go-kanna/fixture v0.0.15/go.mod h1:oR2sFOaYlVjRD4z28KJukrc3FHESrOIUTxK2g+1ytMc=
 github.com/go-kanna/internal v0.0.20 h1:qqbncIKsIp+G2hOlGGFPTzESQ/ePU+2DXt2c+1CzVa4=
 github.com/go-kanna/internal v0.0.20/go.mod h1:Df477EkeFmw5w4hFNoBGUZfZJfgKJnaemuReERxK7to=
 github.com/go-kanna/validate v0.0.18 h1:ZIfSsmOHc3V8XHTWCn6j6+huLDc+iucPMXKxJEgA99Y=
