@@ -41,6 +41,10 @@ type want struct {
 	field   string // eqfield: the field whose value it copies
 	format  string // email, url, or uuid
 	pattern string
+
+	// unknown are the rules kanna-fixture does not know, as written, which the
+	// value it fills may break.
+	unknown []string
 }
 
 // elements returns how many elements a slice that w asks for holds. required
@@ -58,10 +62,10 @@ func (w want) elements() int {
 // without one.
 //
 // The tag is read as go-playground/validator and kanna-validate read it, and as
-// leniently as possible. A rule kanna-fixture does not know is passed over, and
-// so is one it cannot make sense of, such as max=abc: either is the validator's
-// to report. Of alternatives such as email|url, the first is taken, which
-// satisfies them all.
+// leniently as possible. A rule kanna-fixture does not know is kept in unknown,
+// for a warning, and one it cannot make sense of, such as max=abc, is passed
+// over: that is the validator's to report. Of alternatives such as email|url,
+// the first it knows is taken, which satisfies them all.
 func wantsOf(tag reflect.StructTag, t types.Type) []want {
 	s, ok := tag.Lookup(tagKey)
 	if !ok {
@@ -74,15 +78,19 @@ func wantsOf(tag reflect.StructTag, t types.Type) []want {
 		keys  bool
 	)
 	for item := range items(s) {
-		if alt, _, ok := strings.Cut(item, "|"); ok && !strings.HasPrefix(item, "pattern=") {
-			item = alt
+		if alts := strings.Split(item, "|"); len(alts) > 1 && !strings.HasPrefix(item, "pattern=") {
+			item = alts[max(slices.IndexFunc(alts, func(a string) bool {
+				name, _, _ := strings.Cut(a, "=")
+				return knows(name)
+			}), 0)]
 		}
 		name, param, _ := strings.Cut(item, "=")
 		switch {
 		case name == "keys" || name == "endkeys":
 			keys = name == "keys"
-		case keys:
-			// The rules for the keys of a map, which a fixture leaves nil.
+		case keys, name == "":
+			// The rules for the keys of a map, which a fixture leaves nil, and
+			// what an empty item between two commas leaves.
 		case name == "dive":
 			wants = append(wants, r.want())
 			elem, ok := elemOf(r.typ)
@@ -205,8 +213,28 @@ func newReader(t types.Type) *reader {
 	return &reader{typ: t, shape: shapeOf(t), w: want{maxLen: -1}}
 }
 
+// knows reports whether kanna-fixture fills a value to pass the rule name, or
+// needs nothing for it, as for omitempty, which only lets more values pass.
+func knows(name string) bool {
+	switch name {
+	case "required", "email", "url", "uuid", "pattern", "eqfield", "oneof",
+		"min", "max", "len", "eq", "ne", "gt", "gte", "lt", "lte",
+		"omitempty", "omitnil", "omitzero":
+		return true
+	}
+	return false
+}
+
 // add takes in one rule.
 func (r *reader) add(name, param string) {
+	if !knows(name) {
+		rule := name
+		if param != "" {
+			rule += "=" + param
+		}
+		r.w.unknown = append(r.w.unknown, rule)
+		return
+	}
 	switch name {
 	case "required":
 		r.w.required = true
