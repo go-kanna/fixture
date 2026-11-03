@@ -96,7 +96,7 @@ func TestGenerated_Valid(t *testing.T) {
 }
 
 // A value type is made by its constructor, from what a field named after the
-// type would hold, and left zero when its rule rejects that.
+// type would hold, or by the function the fixture package writes for it.
 func TestGenerated_ValueTypes(t *testing.T) {
 	t.Parallel()
 
@@ -104,8 +104,36 @@ func TestGenerated_ValueTypes(t *testing.T) {
 	if !email.MatchString(c.Email.String()) {
 		t.Errorf("Email = %q, want an address its constructor accepted", c.Email)
 	}
-	if c.Since != (model.Since{}) {
-		t.Errorf("Since = %v, want the zero value its constructor's rejection leaves", c.Since)
+	if h := c.Handle.String(); h == "" || strings.ContainsAny(h, "0123456789") {
+		t.Errorf("Handle = %q, want what the function written by hand made", h)
+	}
+	// The faker it is given is the fixture's, seeded with its number.
+	if a, b := fixture.Contact().Handle, fixture.Contact().Handle; a == b {
+		t.Errorf("two contacts have the handle %q, want the faker of each", a)
+	}
+}
+
+// A value type whose constructor rejects what the fixture guessed makes the
+// fixture panic, saying what to write instead.
+func TestGenerated_ValueTypeRejected(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		want := `kanna-fixture: model.Since rejects the value guessed for it: since: rejected; ` +
+			`write func Since() model.Since in package fixture for its fixtures, or tag the field fake:"skip"`
+		if got := recover(); got != want {
+			t.Errorf("panic = %v, want %q", got, want)
+		}
+	}()
+	fixture.Tenure()
+}
+
+// A fixture written by hand is the one the generated fixtures call.
+func TestGenerated_FixtureWrittenByHand(t *testing.T) {
+	t.Parallel()
+
+	if got := fixture.Shop().Owner.Name; got != "kanna" {
+		t.Errorf("Shop().Owner.Name = %q, want the name Owner, written by hand, gives", got)
 	}
 }
 

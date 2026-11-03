@@ -222,6 +222,78 @@ func TestCommand_Clash(t *testing.T) {
 	}
 }
 
+// A function the destination declares by hand, named after a type and
+// returning it, is the fixture of the type: one of a struct takes the place of
+// the generated one, and one of a value type that of the guess.
+func TestCommand_FixturesWrittenByHand(t *testing.T) {
+	t.Parallel()
+
+	dir := writeModule(t, map[string]string{
+		"model/model.go": `package model
+
+import "errors"
+
+type Nickname struct{ s string }
+
+func (n Nickname) String() string { return n.s }
+
+func NewNickname(s string) (Nickname, error) {
+	if s != "kanna" {
+		return Nickname{}, errors.New("nickname: taken")
+	}
+	return Nickname{s: s}, nil
+}
+
+type User struct {
+	Nickname Nickname
+}
+
+type Article struct {
+	Author User
+}
+
+type Profile struct {
+	Nickname Nickname
+}
+`,
+		"model/fixture/hand.go": `package fixture
+
+import "example.com/app/model"
+
+func Nickname() model.Nickname { return model.Nickname{} }
+
+func User() model.User {
+	n, _ := model.NewNickname("kanna")
+	return model.User{Nickname: n}
+}
+`,
+	})
+	model := filepath.Join(dir, "model")
+	if code, stdout, stderr := run(t, model); code != cli.ExitOK || stdout != "" || stderr != "" {
+		t.Fatalf("run = %d, stdout %q, stderr %q; want success in silence", code, stdout, stderr)
+	}
+	got := readFile(t, filepath.Join(model, "fixture", "fixture_gen.go"))
+	if strings.Contains(got, "func User(") || !strings.Contains(got, "Author: User(),") ||
+		!strings.Contains(got, "Nickname: Nickname(),") {
+		t.Errorf("fixture_gen.go declares User, or calls another for Article.Author or Profile.Nickname:\n%s", got)
+	}
+	set, err := packages.Load([]string{"./..."}, packages.Config{Dir: dir})
+	if err != nil || len(set.Diags) > 0 {
+		t.Errorf("the generated package does not load: %v %v", err, set.Diags)
+	}
+
+	// A function of the name that a generated fixture could not call so is no
+	// fixture, but a name taken.
+	writeFile(t, filepath.Join(model, "fixture", "hand.go"),
+		"package fixture\n\nimport \"example.com/app/model\"\n\nfunc User(name string) model.User { return model.User{} }\n")
+	code, _, stderr := run(t, model)
+	want := "fixture/hand.go:5:6: error: the fixture of User would declare User again\n" +
+		"  declare it as func User(setters ...func(*model.User)) model.User for it to be the fixture"
+	if code != cli.ExitFailure || !strings.Contains(stderr, want) {
+		t.Errorf("run = %d, stderr %q; want an error with %q", code, stderr, want)
+	}
+}
+
 func TestCommand_NoStruct(t *testing.T) {
 	t.Parallel()
 

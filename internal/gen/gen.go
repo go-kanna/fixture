@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"os"
 	"path/filepath"
 	"slices"
@@ -89,10 +90,11 @@ func run(dir string, cfg config, patterns []string) ([]output.Change, []diag.Dia
 	}
 
 	path := filepath.Join(dest, outputFile)
+	hand := handWritten(set, dest)
 	found, diags := targets(set.Fset, scan.AllStructs([]*packages.Package{pkg}), cfg.exclude)
 	diags = append(diags, unplaced(set.Fset, scan.Types([]*packages.Package{pkg}))...)
 	if diag.HasErrors(diags) {
-		return nil, packages.Stopped(deferred, diags, set.Pending(fixtures(dest, found)))
+		return nil, packages.Stopped(deferred, diags, set.Pending(fixtures(dest, found, hand)))
 	}
 	var changes []output.Change
 	if len(found) == 0 {
@@ -102,9 +104,9 @@ func run(dir string, cfg config, patterns []string) ([]output.Change, []diag.Dia
 			changes = []output.Change{{Path: path, Remove: true}}
 		}
 	} else {
-		f, ds := emit(set.Fset, found, importPath(dest), destName, output.DeclaredNames(dest, outputFile, destName))
+		f, ds := emit(set.Fset, found, importPath(dest), destName, output.DeclaredNames(dest, outputFile, destName), hand)
 		if diags = append(diags, ds...); diag.HasErrors(diags) {
-			return nil, packages.Stopped(deferred, diags, set.Pending(fixtures(dest, found)))
+			return nil, packages.Stopped(deferred, diags, set.Pending(fixtures(dest, found, hand)))
 		}
 		src, err := f.Bytes()
 		if err != nil {
@@ -149,13 +151,36 @@ func hasCode(dir string) bool {
 }
 
 // fixtures returns the full names of the fixtures of found, which the run
-// writes into the package in dest.
-func fixtures(dest string, found []scan.Struct) map[string]bool {
+// writes into the package in dest, but for those hand declares there.
+func fixtures(dest string, found []scan.Struct, hand map[string]*types.Func) map[string]bool {
 	names := make(map[string]bool, len(found))
 	for _, s := range found {
-		names[importPath(dest)+"."+s.Name] = true
+		if hand[s.Name] == nil {
+			names[importPath(dest)+"."+s.Name] = true
+		}
 	}
 	return names
+}
+
+// handWritten returns the functions the package of set in dest declares by
+// hand, by name, among which a fixture written by hand is: those of a file
+// carrying the generated-code header, the output of an earlier run among them,
+// are not.
+func handWritten(set packages.Set, dest string) map[string]*types.Func {
+	hand := make(map[string]*types.Func)
+	for _, p := range set.Packages {
+		if len(p.GoFiles) == 0 || p.Types == nil || !output.SameDir(filepath.Dir(p.GoFiles[0]), dest) {
+			continue
+		}
+		generated := packages.GeneratedFiles(p)
+		for _, name := range p.Types.Scope().Names() {
+			fn, ok := p.Types.Scope().Lookup(name).(*types.Func)
+			if ok && !generated[p.Fset.Position(fn.Pos()).Filename] {
+				hand[name] = fn
+			}
+		}
+	}
+	return hand
 }
 
 // source returns the one package of set that the fixtures are made from, or

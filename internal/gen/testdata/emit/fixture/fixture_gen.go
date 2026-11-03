@@ -5,6 +5,7 @@ package fixture
 import (
 	"fmt"
 	rand "math/rand/v2"
+	"reflect"
 	"sync/atomic"
 	"time"
 
@@ -40,9 +41,10 @@ var seqContact atomic.Int64
 // applies setters in order.
 func Contact(setters ...func(*model.Contact)) model.Contact {
 	n := seqContact.Add(1)
+	f := gofakeit.NewFaker(rand.NewPCG(uint64(n), 0x13826d13709bf528), false)
 	x := model.Contact{
-		Email: orZero(model.NewEmail(fmt.Sprintf("email-%d@example.com", n))),
-		Since: orZero(model.NewSince(time.Date(2000, time.January, 1, 0, 0, int(n), 0, time.UTC))),
+		Email:  orPanic(model.NewEmail(fmt.Sprintf("email-%d@example.com", n))),
+		Handle: Handle(f),
 	}
 	for _, set := range setters {
 		set(&x)
@@ -89,6 +91,18 @@ func Hidden(setters ...func(*model.Hidden)) model.Hidden {
 	return x
 }
 
+// Shop returns a new model.Shop with every field it can fill set, then
+// applies setters in order.
+func Shop(setters ...func(*model.Shop)) model.Shop {
+	x := model.Shop{
+		Owner: Owner(),
+	}
+	for _, set := range setters {
+		set(&x)
+	}
+	return x
+}
+
 var seqSignUp atomic.Int64
 
 // SignUp returns a new model.SignUp with every field it can fill set, then
@@ -105,6 +119,21 @@ func SignUp(setters ...func(*model.SignUp)) model.SignUp {
 		Agree:    true,
 	}
 	x.Confirm = x.Password
+	for _, set := range setters {
+		set(&x)
+	}
+	return x
+}
+
+var seqTenure atomic.Int64
+
+// Tenure returns a new model.Tenure with every field it can fill set, then
+// applies setters in order.
+func Tenure(setters ...func(*model.Tenure)) model.Tenure {
+	n := seqTenure.Add(1)
+	x := model.Tenure{
+		Since: orPanic(model.NewSince(time.Date(2000, time.January, 1, 0, 0, int(n), 0, time.UTC))),
+	}
 	for _, set := range setters {
 		set(&x)
 	}
@@ -140,10 +169,10 @@ func mustGenerate(f *gofakeit.Faker, template string) string {
 	}
 	return s
 }
-func orZero[T any](v T, err error) T {
+func orPanic[T any](v T, err error) T {
 	if err != nil {
-		var zero T
-		return zero
+		t := reflect.TypeFor[T]()
+		panic(fmt.Sprintf("kanna-fixture: %s rejects the value guessed for it: %v; write func %s() %s in package fixture for its fixtures, or tag the field fake:\"skip\"", t, err, t.Name(), t))
 	}
 	return v
 }

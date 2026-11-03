@@ -131,7 +131,7 @@ Every call takes the next number n of its type, starting at 1, and each field ta
 | tagged `fake`                                                           | see [The fake tag](#the-fake-tag)                                       |
 | a struct that gets a fixture in this run                                | that fixture: `Author: User()`. One that would recur stays zero, or `new(T)` for a `required` pointer, and is warned about |
 | a named type with constants declared beside it                          | the first constant that is not the zero value: `model.RoleAdmin`        |
-| a value type of [kanna-value](https://github.com/go-kanna/value)        | its constructor's, of what a field named after it would hold, or zero   |
+| a value type of [kanna-value](https://github.com/go-kanna/value)        | its constructor's, of what a field named after it would hold            |
 | `time.Time`                                                             | n seconds past 2000-01-01T00:00:00Z                                     |
 | `uuid.UUID`, from the standard library or `github.com/google/uuid`      | a UUID ending in n: `00000000-0000-4000-8000-000000000001`              |
 | any other named type of a basic kind                                    | the value of its kind, as below, converted: `model.UserID(1)`           |
@@ -255,9 +255,52 @@ generates. A name it lists that the package does not declare gets a warning.
 A struct marked `//kanna:value` gets no fixture either, and says nothing: it is a value type of
 [kanna-value](https://github.com/go-kanna/value), whose one field is unexported and whose values are made through its
 constructor. A field of such a type is made with that constructor, of what a field named after the type would hold:
-`orZero(model.NewEmail(fmt.Sprintf("email-%d@example.com", n)))` for an `Email`. A value the type's rule rejects leaves
-the zero value, as one never given, rather than a panic, since a fixture is made before its setters run and a setter
-could not get past one; set such a field with `MustX` in a setter.
+`orPanic(model.NewEmail(fmt.Sprintf("email-%d@example.com", n)))` for an `Email`. A value the type's rule rejects makes
+the fixture panic, saying what to write instead: a fixture of the type written by hand, below. Only running tells, as the
+rule is the type's own code. Tag the field `fake:"skip"` to leave it zero instead.
+
+### Fixtures written by hand
+
+A function the destination declares by hand, named after a type and returning it, is the fixture of the type, which the
+generated fixtures call for a field of it:
+
+```go
+// fixture/nickname.go
+func Nickname(f *gofakeit.Faker) model.Nickname {
+	return model.MustNickname(strings.ToLower(f.FirstName()))
+}
+
+// fixture/user.go
+func User(setters ...func(*model.User)) model.User {
+	u := model.User{Name: "kanna"}
+	for _, set := range setters {
+		set(&u)
+	}
+	return u
+}
+```
+
+| Type         | Function                                                                                         |
+|--------------|--------------------------------------------------------------------------------------------------|
+| a value type | `func T() model.T`, or `func T(f *gofakeit.Faker) model.T` for the faker of the fixture calling it |
+| a struct     | `func T() model.T`, or `func T(setters ...func(*model.T)) model.T`, as a generated fixture is      |
+
+Such a struct gets no generated fixture, and the others call this one instead, whether or not it is marked
+`//kanna:fixture skip`. Its faker is seeded as for a field tagged `fake`, with the number and the type of the fixture
+calling it, so the third User made gets the same nickname on every run. A value the function makes is not unique; count
+one of your own where it has to be:
+
+```go
+var seqEmail atomic.Int64
+
+func Email() model.Email {
+	return model.MustEmail(fmt.Sprintf("user-%d@corp.example", seqEmail.Add(1)))
+}
+```
+
+Another declaration of the name a generated fixture takes stops generation, saying how to declare it to be the
+fixture. A fixture written by hand calls what it calls, which is for its author to keep from coming back to the fixture
+that calls it.
 
 Skipped with a warning: a generic struct, for which a fixture has no type arguments to pick, and a struct that must not
 be copied, such as one holding a `sync.Mutex`, since a fixture returns a value. A protobuf message is one of these, as

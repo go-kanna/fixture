@@ -26,7 +26,7 @@ func reportDeps(dir string, cfg config, patterns []string) (deps.Report, error) 
 	found, _ := targets(set.Fset, scan.AllStructs([]*packages.Package{pkg}), cfg.exclude)
 	if len(found) > 0 {
 		r.Writes = []string{filepath.Join(dest, outputFile)}
-		r.Declares = slices.Collect(maps.Keys(fixtures(dest, found)))
+		r.Declares = slices.Collect(maps.Keys(fixtures(dest, found, handWritten(set, dest))))
 	}
 	return r, nil
 }

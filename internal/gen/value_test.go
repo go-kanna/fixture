@@ -593,9 +593,9 @@ type Contact struct {
 	// called with what a field named after the type would hold, and an optional
 	// pointer to one stays nil.
 	checkFill(t, got, "Contact", []string{
-		`Email: orZero(model.NewEmail(fmt.Sprintf("email-%d@example.com", n)))`,
-		`Primary: new(orZero(model.NewEmail(fmt.Sprintf("email-%d@example.com", n))))`,
-		"Since: orZero(model.NewSince(time.Date(2000, time.January, 1, 0, 0, int(n), 0, time.UTC)))",
+		`Email: orPanic(model.NewEmail(fmt.Sprintf("email-%d@example.com", n)))`,
+		`Primary: new(orPanic(model.NewEmail(fmt.Sprintf("email-%d@example.com", n))))`,
+		"Since: orPanic(model.NewSince(time.Date(2000, time.January, 1, 0, 0, int(n), 0, time.UTC)))",
 		"Lookalike: Lookalike()",
 		"NoAccessor: NoAccessor()",
 		"Unnamed: Unnamed()",

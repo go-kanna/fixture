@@ -39,9 +39,9 @@ type expr struct {
 	typ types.Type
 
 	// usesN, usesF, and generates report whether it calls for the number of
-	// the fixture, its faker, and the helper calling Faker.Generate; usesOrZero,
+	// the fixture, its faker, and the helper calling Faker.Generate; usesOrPanic,
 	// for the helper keeping what a value type's constructor returns.
-	usesN, usesF, generates, usesOrZero bool
+	usesN, usesF, generates, usesOrPanic bool
 }
 
 // assignment sets field to value.
@@ -59,9 +59,9 @@ type filled struct {
 
 	// usesN, usesF, and generates report whether the values call for the
 	// number of the fixture, its faker, and the helper calling Faker.Generate;
-	// usesOrZero, for the helper keeping what a value type's constructor
+	// usesOrPanic, for the helper keeping what a value type's constructor
 	// returns.
-	usesN, usesF, generates, usesOrZero bool
+	usesN, usesF, generates, usesOrPanic bool
 }
 
 // filler works out the values of the fixtures of one generated file.
@@ -75,9 +75,13 @@ type filler struct {
 	// targets are the structs that get a fixture, by the name of their type.
 	targets map[*types.TypeName]bool
 
-	// generate names the helper that calls Faker.Generate, and orZero the one
-	// that keeps what a value type's constructor returns.
-	generate, orZero string
+	// generate names the helper that calls Faker.Generate, and orPanic the
+	// one that keeps what a value type's constructor returns.
+	generate, orPanic string
+
+	// hand holds the functions written by hand in the destination, by name,
+	// among which written finds the fixture of a type.
+	hand map[string]*types.Func
 
 	// n and f are the names the fixture being worked out gives its number and
 	// its faker.
@@ -134,7 +138,7 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 		out.usesN = out.usesN || e.usesN
 		out.usesF = out.usesF || e.usesF
 		out.generates = out.generates || e.generates
-		out.usesOrZero = out.usesOrZero || e.usesOrZero
+		out.usesOrPanic = out.usesOrPanic || e.usesOrPanic
 	}
 	out.copies = inOrder(out.copies)
 	return out, diags
@@ -196,6 +200,11 @@ func (fl *filler) ruled(s scan.Struct, t types.Type, w want) (expr, bool) {
 		return expr{}, false
 	}
 	if v, ok := valuetype.Of(named); ok && v.Constructor != nil {
+		if e, ok := fl.written(named); ok {
+			e.text += "." + v.Accessor + "()"
+			e.typ = v.Held
+			return fl.convert(e, t), true
+		}
 		w.rule = ""
 		e, ok := fl.value(s, v.Held, []want{w}, named.Obj().Name())
 		return fl.convert(e, t), ok
@@ -265,6 +274,59 @@ func (fl *filler) ruleKept(named *types.Named) bool {
 	}
 	_, enum := enumtype.Of(named)
 	return enum && firstConstant(fl.fset, named) != nil
+}
+
+// written returns the call of the fixture of t written by hand in the
+// destination: a function named after t that returns it, callable as the
+// generated code calls it. It takes nothing, or, as a generated fixture does,
+// setters for a struct, or, for a value type, the faker of the fixture
+// calling it, seeded as for a field tagged fake.
+func (fl *filler) written(t *types.Named) (expr, bool) {
+	fn, ok := fl.hand[t.Obj().Name()]
+	if !ok {
+		return expr{}, false
+	}
+	sig := fn.Signature()
+	if sig.Recv() != nil || sig.TypeParams().Len() > 0 || sig.Results().Len() != 1 ||
+		!types.Identical(sig.Results().At(0).Type(), t) {
+		return expr{}, false
+	}
+	call := expr{text: fn.Name() + "()", typ: t}
+	_, isValue := valuetype.Of(t)
+	switch params := sig.Params(); {
+	case params.Len() == 0:
+		return call, true
+	case params.Len() != 1:
+	case sig.Variadic() && !isValue && isSetters(params.At(0).Type(), t):
+		return call, true
+	case !sig.Variadic() && isValue && isFaker(params.At(0).Type()):
+		return expr{text: fn.Name() + "(" + fl.f + ")", typ: t, usesF: true}, true
+	}
+	return expr{}, false
+}
+
+// isFaker reports whether p is the *gofakeit.Faker a fixture gives a field.
+func isFaker(p types.Type) bool {
+	ptr, ok := p.(*types.Pointer)
+	return ok && isNamed(ptr.Elem(), gofakeitPath, "Faker")
+}
+
+// hasWritten reports whether t has a fixture written by hand.
+func (fl *filler) hasWritten(t *types.Named) bool {
+	_, ok := fl.written(t)
+	return ok
+}
+
+// isSetters reports whether p, the variadic parameter of a function, takes
+// what a generated fixture of t does: func(*t) setters.
+func isSetters(p types.Type, t *types.Named) bool {
+	sl, ok := p.(*types.Slice)
+	if !ok {
+		return false
+	}
+	fn, ok := sl.Elem().Underlying().(*types.Signature)
+	return ok && fn.Params().Len() == 1 && fn.Results().Len() == 0 &&
+		types.Identical(fn.Params().At(0).Type(), types.NewPointer(t))
 }
 
 // recurring warns about the fixtures field of s would call, as the rules of
@@ -444,7 +506,15 @@ func (fl *filler) named(s scan.Struct, t *types.Named, w want) (expr, bool) {
 	// The fixtures live in another package, so only an exported value type,
 	// and so an exported constructor, can be made there.
 	if v, ok := valuetype.Of(t); ok && t.Obj().Exported() && v.Constructor != nil {
+		if e, ok := fl.written(t); ok {
+			return e, true
+		}
 		return fl.valueType(s, v, w)
+	}
+	if _, isStruct := t.Underlying().(*types.Struct); isStruct {
+		if e, ok := fl.written(t); ok {
+			return e, true
+		}
 	}
 
 	switch {
@@ -477,19 +547,19 @@ func (fl *filler) named(s scan.Struct, t *types.Named, w want) (expr, bool) {
 }
 
 // valueType works out a value of v, a value type of kanna-value: its
-// constructor called with what a field named after the type would hold, kept if
-// the rule accepts it. A rule the guess breaks leaves the zero
-// value, as one never given, rather than a panic no setter could get past, as
-// the fixture is made before its setters run.
+// constructor called with what a field named after the type would hold. A rule
+// the guess breaks makes the fixture panic, saying to write the fixture of the
+// type by hand, which named calls instead of guessing.
 func (fl *filler) valueType(s scan.Struct, v valuetype.Type, w want) (expr, bool) {
 	e, ok := fl.value(s, v.Held, []want{w}, v.Named.Obj().Name())
 	if !ok {
 		return expr{}, false
 	}
 	e = fl.convert(e, v.Held)
-	e.text = fl.orZero + "(" + fl.imports.Qualifier(v.Constructor.Pkg()) + "." + v.Constructor.Name() + "(" + e.text + "))"
+	ctor := fl.imports.Qualifier(v.Constructor.Pkg()) + "." + v.Constructor.Name()
+	e.text = fl.orPanic + "(" + ctor + "(" + e.text + "))"
 	e.typ = v.Named
-	e.usesOrZero = true
+	e.usesOrPanic = true
 	return e, true
 }
 
@@ -836,7 +906,9 @@ func (fl *filler) reaches(from, to *types.TypeName) bool {
 		if n == to {
 			return true
 		}
-		if seen[n] {
+		// A fixture written by hand calls what it calls, which is for its
+		// author to keep from coming back.
+		if named, ok := n.Type().(*types.Named); seen[n] || ok && fl.hasWritten(named) {
 			return false
 		}
 		seen[n] = true
