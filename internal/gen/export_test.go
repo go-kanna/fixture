@@ -113,6 +113,7 @@ func Fill(fset *token.FileSet, pkgs []*packages.Package) (map[string][]string, [
 	found, diags := targets(fset, scan.Structs(pkgs), nil)
 	fl := &filler{
 		imports:  gofile.New("kanna-fixture", "example.com/fixture", "fixture"),
+		fset:     fset,
 		targets:  map[*types.TypeName]bool{},
 		generate: "mustGenerate",
 		orZero:   "orZero",
@@ -161,6 +162,7 @@ func FillField(name string, t types.Type, tag string) string {
 	}
 	fl := &filler{
 		imports:  gofile.New("kanna-fixture", "example.com/fixture", "fixture"),
+		fset:     token.NewFileSet(),
 		generate: "mustGenerate",
 		orZero:   "orZero",
 		n:        "n",
@@ -180,7 +182,7 @@ func Emit(fset *token.FileSet, pkgs []*packages.Package, destPath, destName stri
 	declared map[string]token.Position,
 ) ([]byte, []string) {
 	found, diags := targets(fset, scan.Structs(pkgs), nil)
-	f, ds := emit(found, destPath, destName, declared)
+	f, ds := emit(fset, found, destPath, destName, declared)
 
 	var msgs []string
 	for _, d := range append(diags, ds...) {
