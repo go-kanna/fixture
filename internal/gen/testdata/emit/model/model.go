@@ -4,6 +4,7 @@ package model
 
 import (
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -94,11 +95,26 @@ type Internal struct {
 	Token string
 }
 
-// Contact holds value types of kanna-value, which have no fixtures of their
-// own: each is made by its constructor.
+// Contact holds value types of kanna-value: Email is made by its constructor,
+// and Handle, whose rule rejects what a fixture would guess, by the function
+// the fixture package writes for it.
 type Contact struct {
-	Email Email
+	Email  Email
+	Handle Handle
+}
+
+// Tenure holds a value type no guess passes, so its fixture panics.
+type Tenure struct {
 	Since Since
+}
+
+// Owner has a fixture written by hand, which Shop's calls.
+type Owner struct {
+	Name string
+}
+
+type Shop struct {
+	Owner Owner
 }
 
 // Email is a value type as kanna-value generates one, down to what a fixture
@@ -111,7 +127,22 @@ func (e Email) String() string { return e.s }
 
 func NewEmail(s string) (Email, error) { return Email{s: s}, nil }
 
-// Since rejects every time, so a fixture keeps its zero value.
+// Handle rejects a digit, so the numbered value a fixture would guess for it
+// never passes.
+//
+//kanna:value
+type Handle struct{ s string }
+
+func (h Handle) String() string { return h.s }
+
+func NewHandle(s string) (Handle, error) {
+	if strings.ContainsAny(s, "0123456789") {
+		return Handle{}, errors.New("handle: no digits")
+	}
+	return Handle{s: s}, nil
+}
+
+// Since rejects every time.
 //
 //kanna:value
 type Since struct{ t time.Time }

@@ -22,50 +22,61 @@ const gofakeitPath = "github.com/brianvoe/gofakeit/v7"
 
 // emit renders the fixtures of targets, the structs of one package that get
 // one, loaded into fset, into a file of the package destName at destPath.
-// declared are the top-level names that package declares besides, with where.
+// declared are the top-level names that package declares besides, with where,
+// and hand the functions among them.
 //
-// A fixture is named after its struct, so a name the package declares already
-// is an error; the other names the file introduces keep clear of them.
+// A fixture is named after its struct. A function of that name written by hand,
+// as the fixture would be, is the struct's fixture instead, which the others
+// call; any other declaration of the name is an error. The other names the
+// file introduces keep clear of them.
 func emit(
 	fset *token.FileSet, targets []scan.Struct, destPath, destName string, declared map[string]token.Position,
+	hand map[string]*types.Func,
 ) (*gofile.File, []diag.Diag) {
-	var diags []diag.Diag
-	for _, s := range targets {
-		if pos, ok := declared[s.Name]; ok {
-			diags = append(diags, diag.Errorf(pos, "the fixture of %s would declare %s again", s.Name, s.Name).
-				WithHints("rename this declaration, or generate the fixtures into a directory of their own"))
-		}
-	}
-
 	f := gofile.New(generator, destPath, destName)
 	f.Reserve(slices.Sorted(maps.Keys(declared))...)
-	fl := &filler{imports: f, fset: fset, targets: make(map[*types.TypeName]bool, len(targets))}
+	fl := &filler{imports: f, fset: fset, targets: make(map[*types.TypeName]bool, len(targets)), hand: hand}
+
+	var (
+		diags     []diag.Diag
+		generated []scan.Struct
+	)
 	for _, s := range targets {
 		f.Reserve(s.Name)
 		fl.targets[s.Named.Obj()] = true
+		if _, ok := fl.written(s.Named); ok {
+			continue
+		}
+		if pos, ok := declared[s.Name]; ok {
+			typ := types.TypeString(s.Named, f.Qualifier)
+			diags = append(diags, diag.Errorf(pos, "the fixture of %s would declare %s again", s.Name, s.Name).
+				WithHints(fmt.Sprintf("declare it as func %s(setters ...func(*%s)) %s for it to be the fixture, "+
+					"rename it, or generate the fixtures into a directory of their own", s.Name, typ, typ)))
+		}
+		generated = append(generated, s)
 	}
 
 	// gofile hands out the rest of the top-level names before any import or
 	// local, from a scope of their own.
 	top := f.Scope()
-	fl.generate, fl.orZero = top.Name("mustGenerate"), top.Name("orZero")
-	counters := make([]string, len(targets))
-	for i, s := range targets {
+	fl.generate, fl.orPanic = top.Name("mustGenerate"), top.Name("orPanic")
+	counters := make([]string, len(generated))
+	for i, s := range generated {
 		counters[i] = top.Name("seq" + s.Name)
 	}
 
-	var generates, usesOrZero bool
-	for i, s := range targets {
+	var generates, usesOrPanic bool
+	for i, s := range generated {
 		filled, ds := fl.fixture(f, s, counters[i])
 		diags = append(diags, ds...)
 		generates = generates || filled.generates
-		usesOrZero = usesOrZero || filled.usesOrZero
+		usesOrPanic = usesOrPanic || filled.usesOrPanic
 	}
 	if generates {
 		writeGenerate(f, fl.generate)
 	}
-	if usesOrZero {
-		writeOrZero(f, fl.orZero)
+	if usesOrPanic {
+		writeOrPanic(f, fl.orPanic, destName)
 	}
 	return f, diags
 }
@@ -120,14 +131,21 @@ func seed(s scan.Struct) uint64 {
 	return h.Sum64()
 }
 
-// writeOrZero writes the helper named name, which keeps what the constructor
+// writeOrPanic writes the helper named name, which keeps what the constructor
 // of a value type returns where only one value can go, such as in a composite
-// literal, or the zero value when the constructor rejects what it was given.
-func writeOrZero(f *gofile.File, name string) {
+// literal. A constructor that rejects what the fixture guessed is a fixture
+// that cannot be made, which only running tells: it panics then, saying what
+// to write in destName, the package of the fixtures, instead.
+func writeOrPanic(f *gofile.File, name, destName string) {
 	scope := f.Scope()
-	v, err := scope.Name("v"), scope.Name("err")
+	v, err, t := scope.Name("v"), scope.Name("err"), scope.Name("t")
 	fmt.Fprintf(f, "func %s[T any](%s T, %s error) T {\n", name, v, err)
-	fmt.Fprintf(f, "if %s != nil {\nvar zero T\nreturn zero\n}\n", err)
+	fmt.Fprintf(f, "if %s != nil {\n", err)
+	fmt.Fprintf(f, "%s := %s.TypeFor[T]()\n", t, f.Import("reflect", "reflect"))
+	fmt.Fprintf(f, "panic(%s.Sprintf(%q, %s, %s, %s.Name(), %s))\n", f.Import("fmt", "fmt"),
+		"kanna-fixture: %s rejects the value guessed for it: %v; write func %s() %s in package "+destName+
+			" for its fixtures, or tag the field fake:\"skip\"", t, err, t, t)
+	fmt.Fprintf(f, "}\n")
 	fmt.Fprintf(f, "return %s\n}\n", v)
 }
 

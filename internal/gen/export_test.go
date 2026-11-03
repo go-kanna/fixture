@@ -5,6 +5,7 @@ import (
 	"go/constant"
 	"go/token"
 	"go/types"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -117,7 +118,7 @@ func Fill(fset *token.FileSet, pkgs []*packages.Package) (map[string][]string, [
 		fset:     fset,
 		targets:  map[*types.TypeName]bool{},
 		generate: "mustGenerate",
-		orZero:   "orZero",
+		orPanic:  "orPanic",
 		n:        "n",
 		f:        "f",
 	}
@@ -165,7 +166,7 @@ func FillField(name string, t types.Type, tag string) string {
 		imports:  gofile.New("kanna-fixture", "example.com/fixture", "fixture"),
 		fset:     token.NewFileSet(),
 		generate: "mustGenerate",
-		orZero:   "orZero",
+		orPanic:  "orPanic",
 		n:        "n",
 		f:        "f",
 	}
@@ -180,10 +181,14 @@ func FillField(name string, t types.Type, tag string) string {
 // package destName at destPath, whose other files declare declared. It spells
 // each diagnostic as diag.Diag.String does.
 func Emit(fset *token.FileSet, pkgs []*packages.Package, destPath, destName string,
-	declared map[string]token.Position,
+	declared map[string]token.Position, dest *packages.Package,
 ) ([]byte, []string) {
 	found, diags := targets(fset, scan.Structs(pkgs), nil)
-	f, ds := emit(fset, found, destPath, destName, declared)
+	var hand map[string]*types.Func
+	if dest != nil {
+		hand = handWritten(packages.Set{Packages: []*packages.Package{dest}}, filepath.Dir(dest.GoFiles[0]))
+	}
+	f, ds := emit(fset, found, destPath, destName, declared, hand)
 
 	var msgs []string
 	for _, d := range append(diags, ds...) {

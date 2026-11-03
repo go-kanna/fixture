@@ -126,7 +126,7 @@ u := fixture.User(member, func(u *model.User) { u.Age = 70 })
 | `fake` タグ付き | [fake タグ](#fake-タグ)を参照 |
 | この実行でフィクスチャが生成される構造体 | そのフィクスチャ: `Author: User()`。再帰することになるものはゼロ値のまま（`required` のポインタなら `new(T)`）で、警告する |
 | 同じパッケージにその型の定数が宣言されている名前付き型 | ゼロ値でない最初の定数: `model.RoleAdmin` |
-| [kanna-value](https://github.com/go-kanna/value) の値オブジェクト | 型と同じ名前のフィールドに入る値をコンストラクタに渡した結果、またはゼロ値 |
+| [kanna-value](https://github.com/go-kanna/value) の値オブジェクト | 型と同じ名前のフィールドに入る値をコンストラクタに渡した結果 |
 | `time.Time` | 2000-01-01T00:00:00Z の n 秒後 |
 | 標準ライブラリまたは `github.com/google/uuid` の `uuid.UUID` | 末尾が n の UUID: `00000000-0000-4000-8000-000000000001` |
 | 基底型が基本型であるその他の名前付き型 | 基底型について下の行で決まる値を変換したもの: `model.UserID(1)` |
@@ -219,7 +219,44 @@ $ go generate ./...
 
 `-exclude` は同じことをコマンドラインから行います。sqlc が生成するモデルのように、ソースを自分で書かないパッケージのためのものです。パッケージが宣言していない名前を指定すると警告が出ます。
 
-`//kanna:value` が付いた構造体にもフィクスチャは生成されず、何も報告されません。これは [kanna-value](https://github.com/go-kanna/value) の値オブジェクトで、唯一のフィールドは非公開であり、値はコンストラクタを通して作られるからです。このような型のフィールドは、型と同じ名前のフィールドに入る値をそのコンストラクタに渡して作られます。`Email` なら `orZero(model.NewEmail(fmt.Sprintf("email-%d@example.com", n)))` です。型のルールが拒否した値は、panic にはせず、値が渡されなかったときと同じくゼロ値になります。フィクスチャはセッターの実行前に作られるので、panic するとセッターでは回避できないからです。そのようなフィールドは、セッターの中で `MustX` を使って設定してください。
+`//kanna:value` が付いた構造体にもフィクスチャは生成されず、何も報告されません。これは [kanna-value](https://github.com/go-kanna/value) の値オブジェクトで、唯一のフィールドは非公開であり、値はコンストラクタを通して作られるからです。このような型のフィールドは、型と同じ名前のフィールドに入る値をそのコンストラクタに渡して作られます。`Email` なら `orPanic(model.NewEmail(fmt.Sprintf("email-%d@example.com", n)))` です。型のルールが拒否した値は、フィクスチャを panic させ、代わりに何を書けばよいか（下の、手で書くフィクスチャ）を示します。ルールは型自身のコードなので、実行するまで分からないからです。ゼロ値のままにしたいフィールドには `fake:"skip"` を付けてください。
+
+### 手で書くフィクスチャ
+
+出力先のパッケージに、型の名前でその型を返す関数を手で書くと、それがその型のフィクスチャになります。生成されるフィクスチャは、その型のフィールドにそれを呼びます:
+
+```go
+// fixture/nickname.go
+func Nickname(f *gofakeit.Faker) model.Nickname {
+	return model.MustNickname(strings.ToLower(f.FirstName()))
+}
+
+// fixture/user.go
+func User(setters ...func(*model.User)) model.User {
+	u := model.User{Name: "kanna"}
+	for _, set := range setters {
+		set(&u)
+	}
+	return u
+}
+```
+
+| 型 | 関数 |
+|---|---|
+| 値オブジェクト | `func T() model.T`、または呼び出すフィクスチャの faker を受け取る `func T(f *gofakeit.Faker) model.T` |
+| 構造体 | `func T() model.T`、または生成されるフィクスチャと同じ `func T(setters ...func(*model.T)) model.T` |
+
+そのような構造体のフィクスチャは生成されず、ほかのフィクスチャは、`//kanna:fixture skip` が付いているかどうかによらず、この関数を呼びます。faker は、`fake` タグのフィールドと同じく、呼び出すフィクスチャの番号と型から種を決めたものです。そのため、3 番目に作った User は、毎回同じニックネームになります。この関数が作る値は一意ではありません。一意でなければならないときは、自分で数えてください:
+
+```go
+var seqEmail atomic.Int64
+
+func Email() model.Email {
+	return model.MustEmail(fmt.Sprintf("user-%d@corp.example", seqEmail.Add(1)))
+}
+```
+
+生成されるフィクスチャの名前を、ほかの形で宣言していると、生成を止め、フィクスチャにするための宣言の形を示します。手で書いたフィクスチャが何を呼ぶかは書いた人のもので、それを呼ぶフィクスチャに戻ってこないようにするのも、書いた人の役目です。
 
 次の構造体は警告を出してスキップします。ジェネリックな構造体（フィクスチャが型引数を選べないため）と、`sync.Mutex` を持つ構造体のようにコピーしてはならない構造体（フィクスチャは値を返すため）です。protobuf のメッセージもその 1 つで、コピーすれば `go vet` が指摘します。ディレクティブの綴り間違いにも警告が出ます。警告がなければ、その構造体にはフィクスチャが生成されたまま、何も報告されないからです。`//kanna:fixture` の引数が `skip` 以外の場合や、引数がない場合はエラーになります:
 

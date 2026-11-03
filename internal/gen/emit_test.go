@@ -22,7 +22,10 @@ import (
 func TestEmit(t *testing.T) {
 	t.Parallel()
 
-	set, err := packages.Load([]string{"./testdata/emit/model"}, packages.Config{})
+	// The fixtures written by hand are loaded too, without the output of the
+	// last run, as a run loads them.
+	set, err := packages.Load([]string{"./testdata/emit/model", "./testdata/emit/fixture"},
+		packages.Config{Regenerated: []string{"fixture_gen.go"}})
 	if err != nil || len(set.Diags) > 0 {
 		t.Fatalf("load: %v %v", err, set.Diags)
 	}
@@ -31,8 +34,13 @@ func TestEmit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, diags := gen.Emit(set.Fset, set.Packages, "github.com/go-kanna/fixture/internal/gen/testdata/emit/fixture",
-		"fixture", output.DeclaredNames(dest, "fixture_gen.go", "fixture"))
+	byName := make(map[string]*packages.Package, len(set.Packages))
+	for _, p := range set.Packages {
+		byName[p.Name] = p
+	}
+	got, diags := gen.Emit(set.Fset, []*packages.Package{byName["model"]},
+		"github.com/go-kanna/fixture/internal/gen/testdata/emit/fixture", "fixture",
+		output.DeclaredNames(dest, "fixture_gen.go", "fixture"), byName["fixture"])
 	if len(diags) > 0 {
 		t.Fatalf("diagnostics = %q, want none\n%s", diags, got)
 	}
@@ -56,7 +64,7 @@ type User struct {
 		"x":            {Filename: "/dest/helpers.go", Line: 9, Column: 5},
 	}
 
-	got, diags := gen.Emit(pkg.Fset, []*packages.Package{pkg}, "example.com/fixture", "fixture", declared)
+	got, diags := gen.Emit(pkg.Fset, []*packages.Package{pkg}, "example.com/fixture", "fixture", declared, nil)
 	if len(diags) > 0 {
 		t.Fatalf("diagnostics = %q, want none\n%s", diags, got)
 	}
@@ -74,8 +82,8 @@ type User struct {
 	}
 }
 
-// A fixture is named after its struct, so a name the destination declares is
-// not one it can keep clear of.
+// A fixture is named after its struct, so a name the destination declares, but
+// not as a fixture of the struct, is not one it can keep clear of.
 func TestEmit_Clash(t *testing.T) {
 	t.Parallel()
 
@@ -87,9 +95,10 @@ type Article struct{}
 `})
 	declared := map[string]token.Position{"User": {Filename: "/dest/user.go", Line: 3, Column: 6}}
 
-	_, diags := gen.Emit(pkg.Fset, []*packages.Package{pkg}, "example.com/fixture", "fixture", declared)
+	_, diags := gen.Emit(pkg.Fset, []*packages.Package{pkg}, "example.com/fixture", "fixture", declared, nil)
 	want := []string{"/dest/user.go:3:6: error: the fixture of User would declare User again\n" +
-		"  rename this declaration, or generate the fixtures into a directory of their own"}
+		"  declare it as func User(setters ...func(*model.User)) model.User for it to be the fixture, " +
+		"rename it, or generate the fixtures into a directory of their own"}
 	if !slices.Equal(diags, want) {
 		t.Errorf("diagnostics = %q, want %q", diags, want)
 	}
