@@ -101,7 +101,7 @@ func run(dir string, cfg config, patterns []string) ([]output.Change, []diag.Dia
 			changes = []output.Change{{Path: path, Remove: true}}
 		}
 	} else {
-		f, ds := emit(found, importPath(dest), destName, output.DeclaredNames(dest, outputFile, destName))
+		f, ds := emit(set.Fset, found, importPath(dest), destName, output.DeclaredNames(dest, outputFile, destName))
 		if diags = append(diags, ds...); diag.HasErrors(diags) {
 			return nil, packages.Stopped(deferred, diags, set.Pending(fixtures(dest, found)))
 		}

@@ -21,13 +21,13 @@ const generator = "kanna-fixture"
 const gofakeitPath = "github.com/brianvoe/gofakeit/v7"
 
 // emit renders the fixtures of targets, the structs of one package that get
-// one, into a file of the package destName at destPath. declared are the
-// top-level names that package declares besides, with where.
+// one, loaded into fset, into a file of the package destName at destPath.
+// declared are the top-level names that package declares besides, with where.
 //
 // A fixture is named after its struct, so a name the package declares already
 // is an error; the other names the file introduces keep clear of them.
 func emit(
-	targets []scan.Struct, destPath, destName string, declared map[string]token.Position,
+	fset *token.FileSet, targets []scan.Struct, destPath, destName string, declared map[string]token.Position,
 ) (*gofile.File, []diag.Diag) {
 	var diags []diag.Diag
 	for _, s := range targets {
@@ -39,7 +39,7 @@ func emit(
 
 	f := gofile.New(generator, destPath, destName)
 	f.Reserve(slices.Sorted(maps.Keys(declared))...)
-	fl := &filler{imports: f, targets: make(map[*types.TypeName]bool, len(targets))}
+	fl := &filler{imports: f, fset: fset, targets: make(map[*types.TypeName]bool, len(targets))}
 	for _, s := range targets {
 		f.Reserve(s.Name)
 		fl.targets[s.Named.Obj()] = true

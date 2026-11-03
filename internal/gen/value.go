@@ -17,6 +17,7 @@ import (
 
 	"github.com/brianvoe/gofakeit/v7"
 	"github.com/go-kanna/internal/diag"
+	"github.com/go-kanna/internal/enumtype"
 	"github.com/go-kanna/internal/scan"
 	"github.com/go-kanna/internal/valuetype"
 )
@@ -65,6 +66,10 @@ type filled struct {
 // filler works out the values of the fixtures of one generated file.
 type filler struct {
 	imports imports
+
+	// fset is what the types were loaded into, which orders the constants of
+	// a type.
+	fset *token.FileSet
 
 	// targets are the structs that get a fixture, by the name of their type.
 	targets map[*types.TypeName]bool
@@ -322,7 +327,7 @@ func (fl *filler) named(s scan.Struct, t *types.Named, w want) (expr, bool) {
 		// The rules of the field say which values it takes.
 		return expr{}, false
 	}
-	if c := firstConstant(t); c != nil {
+	if c := firstConstant(fl.fset, t); c != nil {
 		return expr{text: fl.imports.Qualifier(c.Pkg()) + "." + c.Name(), typ: t}, true
 	}
 	return expr{}, false
@@ -349,22 +354,16 @@ func (fl *filler) valueType(s scan.Struct, v valuetype.Type, w want) (expr, bool
 // that is not the zero value, so that a sentinel such as StatusUnspecified is
 // passed over. It has to be exported, since the fixtures live in another
 // package.
-func firstConstant(t *types.Named) *types.Const {
-	pkg := t.Obj().Pkg()
-	if pkg == nil {
+func firstConstant(fset *token.FileSet, t *types.Named) *types.Const {
+	if t.Obj().Pkg() == nil {
 		return nil
 	}
-	var consts []*types.Const
-	for _, name := range pkg.Scope().Names() {
-		c, ok := pkg.Scope().Lookup(name).(*types.Const)
-		if ok && c.Exported() && types.Identical(c.Type(), t) && !isZero(c.Val()) {
-			consts = append(consts, c)
+	for _, c := range enumtype.Constants(t, fset) {
+		if c.Exported() && !isZero(c.Val()) {
+			return c
 		}
 	}
-	if len(consts) == 0 {
-		return nil
-	}
-	return slices.MinFunc(consts, func(a, b *types.Const) int { return int(a.Pos() - b.Pos()) })
+	return nil
 }
 
 func isZero(v constant.Value) bool {
