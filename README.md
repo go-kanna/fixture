@@ -129,7 +129,7 @@ Every call takes the next number n of its type, starting at 1, and each field ta
 | Field                                                                   | Value                                                                   |
 |-------------------------------------------------------------------------|-------------------------------------------------------------------------|
 | tagged `fake`                                                           | see [The fake tag](#the-fake-tag)                                       |
-| a struct that gets a fixture in this run                                | that fixture: `Author: User()`. One that would recur stays zero         |
+| a struct that gets a fixture in this run                                | that fixture: `Author: User()`. One that would recur stays zero, or `new(T)` for a `required` pointer, and is warned about |
 | a named type with constants declared beside it                          | the first constant that is not the zero value: `model.RoleAdmin`        |
 | a value type of [kanna-value](https://github.com/go-kanna/value)        | its constructor's, of what a field named after it would hold, or zero   |
 | `time.Time`                                                             | n seconds past 2000-01-01T00:00:00Z                                     |
@@ -181,7 +181,7 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 
 | Rule                                               | Value                                                                                                     |
 |----------------------------------------------------|-----------------------------------------------------------------------------------------------------------|
-| `required`                                         | not the zero value: `true`, a number other than 0, a pointer to a value, a slice of one element           |
+| `required`                                         | not the zero value: `true`, a number other than 0, a pointer to a value, a slice of one element, an empty map |
 | `min`, `max`, `len` on strings and slices          | a length within them: `password-001` for `min=12`, k elements for `min=k`, `[]T{}` for `required,max=0`   |
 | `gt`, `gte`, `lt`, `lte`, `min`, `max` on integers | n, counted from the lower bound, or from 1, and wrapping within the upper: `gt=0` → 1, 2, 3, …            |
 | `gt`, `gte`, `lt`, `lte`, `min`, `max` on floats   | the lowest value they allow, or the highest without a lower bound: `gt=0` → `1`                           |
