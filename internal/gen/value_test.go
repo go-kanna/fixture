@@ -294,6 +294,49 @@ type Change struct {
 	}
 }
 
+// A rule kanna-fixture does not know, and a length a map it fills empty is to
+// have, are warned about, unless a fake tag says what the field holds. Of
+// alternatives, the one it knows is filled.
+func TestFill_WarnsOfRulesNotKept(t *testing.T) {
+	t.Parallel()
+
+	got, diags := fill(t, `package model
+
+type Item struct {
+	Slug   string            `+"`"+`validate:"required,alphanum"`+"`"+`
+	Token  string            `+"`"+`validate:"uuid4|uuid"`+"`"+`
+	When   string            `+"`"+`validate:"required_if=Slug x"`+"`"+`
+	Labels map[string]string `+"`"+`validate:"min=1"`+"`"+`
+	Codes  []string          `+"`"+`validate:"min=1,dive,numeric"`+"`"+`
+	Faked  string            `+"`"+`fake:"abc" validate:"alphanum"`+"`"+`
+	Plain  string            `+"`"+`validate:"omitempty,omitnil,omitzero,max=10,"`+"`"+`
+}
+`)
+
+	checkFill(t, got, "Item", []string{
+		`Slug: fmt.Sprintf("slug-%d", n)`,
+		`Token: fmt.Sprintf("00000000-0000-4000-8000-%012x", n)`,
+		`When: fmt.Sprintf("when-%d", n)`,
+		`Codes: []string{fmt.Sprintf("codes-%d", n)}`,
+		`Faked: "abc"`,
+		`Plain: fmt.Sprintf("plain-%d", n%10000)`,
+		"uses n",
+	})
+	want := []string{
+		"test.go:4:2: warning: kanna-fixture does not know alphanum, so the value it fills may break it; " +
+			"give the field a fake tag (field Slug)",
+		"test.go:6:2: warning: kanna-fixture does not know required_if=Slug x, so the value it fills may break it; " +
+			"give the field a fake tag (field When)",
+		"test.go:7:2: warning: an empty map does not fit within the length the rules set; " +
+			"give the field a fake tag (field Labels)",
+		"test.go:8:2: warning: kanna-fixture does not know numeric, so the value it fills may break it; " +
+			"give the field a fake tag (field Codes)",
+	}
+	if !slices.Equal(diags, want) {
+		t.Errorf("diagnostics =\n\t%s\nwant\n\t%s", strings.Join(diags, "\n\t"), strings.Join(want, "\n\t"))
+	}
+}
+
 func TestFill_Fake(t *testing.T) {
 	t.Parallel()
 

@@ -138,7 +138,8 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 }
 
 // unkept warns about the rules of field, wants, that the fixture cannot keep:
-// a format no value of which fits the length the rules set, which str passes
+// a rule it does not know, a length a map is to have, which it fills empty, a
+// format no value of which fits the length the rules set, which str passes
 // over, and a pattern the faker makes values from that do not match it or do
 // not fit that length, which is cleared so that the field is numbered instead.
 // A pattern that does not compile is cleared without a word: that is for the
@@ -153,6 +154,12 @@ func unkept(field scan.Field, wants []want) []diag.Diag {
 	for i, w := range wants {
 		if i > 0 {
 			t, _ = elemOf(t)
+		}
+		for _, rule := range w.unknown {
+			warn(fmt.Sprintf("kanna-fixture does not know %s, so the value it fills may break it", rule))
+		}
+		if _, isMap := deref(t).Underlying().(*types.Map); isMap && w.minLen > 0 {
+			warn("an empty map does not fit within the length the rules set")
 		}
 		if shapeOf(t) != shapeString {
 			continue
