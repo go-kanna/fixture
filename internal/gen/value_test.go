@@ -264,6 +264,36 @@ type SignUp struct {
 	}
 }
 
+// A copy of a field that copies another comes after that copy, whatever the
+// order of the fields, so that the chain ends at the same value. A cycle has
+// nothing to copy, and leaves its fields zero.
+func TestFill_CopiesInOrder(t *testing.T) {
+	t.Parallel()
+
+	got, diags := fill(t, `package model
+
+type Change struct {
+	Third  string `+"`"+`validate:"eqfield=Second"`+"`"+`
+	Second string `+"`"+`validate:"eqfield=First"`+"`"+`
+	First  string
+	A      string `+"`"+`validate:"eqfield=B"`+"`"+`
+	B      string `+"`"+`validate:"eqfield=A"`+"`"+`
+}
+`)
+
+	checkFill(t, got, "Change", []string{
+		`First: fmt.Sprintf("first-%d", n)`,
+		"Second = First",
+		"Third = Second",
+		"B = A",
+		"A = B",
+		"uses n",
+	})
+	if len(diags) > 0 {
+		t.Errorf("diagnostics = %q, want none", diags)
+	}
+}
+
 func TestFill_Fake(t *testing.T) {
 	t.Parallel()
 
