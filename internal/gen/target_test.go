@@ -293,6 +293,36 @@ type Internal struct{}
   did you mean "//kanna:fixture skip"?`},
 		},
 		{
+			name: "on an unexported struct",
+			src: `package test
+
+//kanna:fixture skip
+type internal struct{}
+`,
+			diags: []string{"test.go:3:1: warning: //kanna:fixture on internal does nothing: an unexported struct " +
+				"gets none, as the fixtures live in another package\n  remove it"},
+		},
+		{
+			name: "on a type that is no struct",
+			src: `package test
+
+//kanna:fixture skip
+type Role string
+`,
+			diags: []string{"test.go:3:1: warning: //kanna:fixture on Role does nothing: only a struct gets a fixture\n" +
+				"  remove it"},
+		},
+		{
+			name: "misspelled on a type that is no struct",
+			src: `package test
+
+//kanna:fixtur skip
+type Role string
+`,
+			diags: []string{`test.go:3:1: warning: "//kanna:fixtur skip" is not recognized as a directive
+  did you mean "//kanna:fixture skip"?`},
+		},
+		{
 			name: "no argument",
 			src: `package test
 

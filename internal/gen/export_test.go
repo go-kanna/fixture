@@ -18,6 +18,7 @@ import (
 // spells each diagnostic as diag.Diag.String does.
 func Targets(fset *token.FileSet, pkgs []*packages.Package, exclude []string) ([]string, []string) {
 	found, diags := targets(fset, scan.Structs(pkgs), exclude)
+	diags = append(diags, unplaced(fset, scan.Types(pkgs))...)
 
 	names := make([]string, len(found))
 	for i, s := range found {
