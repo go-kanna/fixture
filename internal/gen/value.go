@@ -133,6 +133,7 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 		out.generates = out.generates || e.generates
 		out.usesOrZero = out.usesOrZero || e.usesOrZero
 	}
+	out.copies = inOrder(out.copies)
 	return out, diags
 }
 
@@ -189,6 +190,35 @@ func copied(s scan.Struct, field scan.Field) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// inOrder orders copies so that a copy of a field that copies another comes
+// after that copy. A cycle, which nothing fills, leaves its fields zero
+// whichever way it goes.
+func inOrder(copies []assignment) []assignment {
+	byField := make(map[string]assignment, len(copies))
+	for _, a := range copies {
+		byField[a.field] = a
+	}
+	var (
+		ordered []assignment
+		seen    = make(map[string]bool, len(copies))
+		visit   func(a assignment)
+	)
+	visit = func(a assignment) {
+		if seen[a.field] {
+			return
+		}
+		seen[a.field] = true
+		if from, ok := byField[a.value]; ok {
+			visit(from)
+		}
+		ordered = append(ordered, a)
+	}
+	for _, a := range copies {
+		visit(a)
+	}
+	return ordered
 }
 
 // fake turns what a fake tag asks for into an expression of type t.
