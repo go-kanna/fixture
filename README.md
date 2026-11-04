@@ -203,9 +203,10 @@ The rules are read to be satisfied, not checked. A rule kanna-fixture does not k
 alternatives such as `uuid4|uuid`, the one it knows is filled. `omitempty`, `omitnil`, and `omitzero` need nothing, as
 they only let more values pass. A map is filled empty, so a length it is to have is warned about the same way. A pattern
 is the one rule a number cannot meet, and gofakeit cannot generate every expression; when what it makes does not match,
-or does not fit within `min`, `max`, or `len`, generation warns and asks for a `fake` tag. So it does for a format that
-cannot fit within them: a UUID is 36 characters long, and an address or a URL needs room for its number beside
-`@example.com` or `https://example.com/`.
+or does not fit within `min`, `max`, or `len`, generation warns and asks for a `fake` tag. So it does for a format a
+rule asks for, `email`, `url`, or `uuid`, that cannot fit within them: a UUID is 36 characters long, and an address or
+a URL needs room for its number beside `@example.com` or `https://example.com/`. A format the name of the field alone
+asks for gives way to them, and the field is numbered without it.
 
 ## The fake tag
 

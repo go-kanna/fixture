@@ -195,6 +195,7 @@ type SignUp struct {
 	Site     string            `+"`"+`validate:"url,min=30"`+"`"+`
 	Contact  string            `+"`"+`validate:"email,max=10"`+"`"+`
 	Ref      string            `+"`"+`validate:"uuid,max=20"`+"`"+`
+	HomeURL  string            `+"`"+`validate:"max=10"`+"`"+`
 	Bigger   uint64            `+"`"+`validate:"gte=9223372036854775808,lte=9223372036854775810"`+"`"+`
 	Biggest  uint64            `+"`"+`validate:"gte=18446744073709551615"`+"`"+`
 }
@@ -243,6 +244,7 @@ type SignUp struct {
 		`Site: fmt.Sprintf("https://example.com/site-%05d", n)`,
 		`Contact: fmt.Sprintf("conta-%d", n%10000)`,
 		`Ref: fmt.Sprintf("ref-%d", n)`,
+		`HomeURL: fmt.Sprintf("home-%d", n%100000)`,
 		"Bigger: 9223372036854775808 + (uint64(n)-1)%3",
 		"Biggest: 18446744073709551615",
 		"Confirm = Password",
