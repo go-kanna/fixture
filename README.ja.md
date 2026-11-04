@@ -290,6 +290,7 @@ kanna-fixture [flags] [package]
 |---|---|
 | `-destination <dir>` | `fixture_gen.go` を dir に書き出す（デフォルトは `fixture`） |
 | `-exclude <names>` | スキップする構造体の名前（カンマ区切り） |
+| `-tags <list>` | カンマ区切りのビルドタグ |
 | `-check` | 書き出す代わりに、出力が最新であることを検証する。不要な出力が残っていないことも含む。`KANNA_CHECK=1` でも同じ |
 | `-v` | 書き出した、削除した、変更しなかったファイルを一覧表示する |
 | `-deps` | 実行が読み書きするものを、`kanna` コマンドのために JSON で表示して終了する |
