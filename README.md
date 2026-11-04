@@ -130,7 +130,8 @@ Every call takes the next number n of its type, starting at 1, and each field ta
 |-------------------------------------------------------------------------|-------------------------------------------------------------------------|
 | tagged `fake`                                                           | see [The fake tag](#the-fake-tag)                                       |
 | a struct that gets a fixture in this run                                | that fixture: `Author: User()`. One that would recur stays zero, or `new(T)` for a `required` pointer, and is warned about |
-| a named type with constants declared beside it                          | the first constant that is not the zero value: `model.RoleAdmin`        |
+| a type with a fixture [written by hand](#fixtures-written-by-hand)      | that fixture: `Status()`                                                |
+| an enum, a named string type with constants declared beside it          | the first constant that is not the zero value: `model.RoleAdmin`        |
 | a value type of [kanna-value](https://github.com/go-kanna/value)        | its constructor's, of what a field named after it would hold            |
 | `time.Time`                                                             | n seconds past 2000-01-01T00:00:00Z                                     |
 | `uuid.UUID`, from the standard library or `github.com/google/uuid`      | a UUID ending in n: `00000000-0000-4000-8000-000000000001`              |
@@ -283,10 +284,20 @@ func User(setters ...func(*model.User)) model.User {
 }
 ```
 
-| Type         | Function                                                                                         |
-|--------------|--------------------------------------------------------------------------------------------------|
-| a value type | `func T() model.T`, or `func T(f *gofakeit.Faker) model.T` for the faker of the fixture calling it |
-| a struct     | `func T() model.T`, or `func T(setters ...func(*model.T)) model.T`, as a generated fixture is      |
+| Type                         | Function                                                                                         |
+|------------------------------|--------------------------------------------------------------------------------------------------|
+| a struct, but a value type   | `func T() model.T`, or `func T(setters ...func(*model.T)) model.T`, as a generated fixture is      |
+| any other named type         | `func T() model.T`, or `func T(f *gofakeit.Faker) model.T` for the faker of the fixture calling it |
+
+The constants of a type other than an enum of string, such as `time.Duration` or an enum of int, are no choices a
+fixture picks from: it converts a number, `model.Status(n)`. Write the fixture of the type for a value of your choosing:
+
+```go
+// fixture/status.go
+func Status() model.Status {
+	return model.StatusActive
+}
+```
 
 Such a struct gets no generated fixture, and the others call this one instead, whether or not it is marked
 `//kanna:fixture skip`. Its faker is seeded as for a field tagged `fake`, with the number and the type of the fixture
