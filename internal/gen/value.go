@@ -222,7 +222,9 @@ func unkept(field scan.Field, wants []want) []diag.Diag {
 		if shapeOf(t) != shapeString {
 			continue
 		}
-		if format, fits := formatOf(w, field.Name); !fits {
+		// A format the name alone asks for gives way to the length, which a
+		// value numbered without it meets.
+		if format, fits := formatOf(w, field.Name); !fits && w.format != "" {
 			warn(formats[format].what + " does not fit within the length the rules set")
 		}
 		if w.pattern == "" {
@@ -741,7 +743,7 @@ func numbered(name string, minLen, maxLen int) (string, int64) {
 	if maxLen >= 0 && utf8.RuneCountInString(base)+4 > maxLen {
 		base = ""
 		if maxLen >= 6 {
-			base = string([]rune(name)[:maxLen-5]) + "-"
+			base = strings.TrimRight(string([]rune(name)[:maxLen-5]), "-") + "-"
 		}
 	}
 
