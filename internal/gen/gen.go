@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-kanna/internal/cli"
 	"github.com/go-kanna/internal/diag"
+	"github.com/go-kanna/internal/directive"
 	"github.com/go-kanna/internal/output"
 	"github.com/go-kanna/internal/packages"
 	"github.com/go-kanna/internal/scan"
@@ -93,6 +94,7 @@ func run(dir string, cfg config, patterns []string) ([]output.Change, []diag.Dia
 	hand := handWritten(set, dest)
 	found, diags := targets(set.Fset, scan.AllStructs([]*packages.Package{pkg}), cfg.exclude)
 	diags = append(diags, unplaced(set.Fset, scan.Types([]*packages.Package{pkg}))...)
+	diags = append(diags, directive.Loose(directive.Lines(set.Fset, pkg.Syntax), directiveKey)...)
 	if diag.HasErrors(diags) {
 		return nil, packages.Stopped(deferred, diags, set.Pending(fixtures(dest, found, hand)))
 	}

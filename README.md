@@ -319,7 +319,8 @@ that calls it.
 Skipped with a warning: a generic struct, for which a fixture has no type arguments to pick, and a struct that must not
 be copied, such as one holding a `sync.Mutex`, since a fixture returns a value. A protobuf message is one of these, as
 `go vet` would say of copying it. A misspelled directive also gets a warning, which would otherwise leave the struct
-with a fixture and say nothing, and `//kanna:fixture` with an argument other than `skip`, or none, an error:
+with a fixture and say nothing, as does one a blank line keeps from its struct, and `//kanna:fixture` with an argument
+other than `skip`, or none, an error:
 
 ```console
 ./model.go:3:1: warning: "//kanna:fixtur skip" is not recognized as a directive
