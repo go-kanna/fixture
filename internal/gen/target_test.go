@@ -329,7 +329,7 @@ type Role string
 //kanna:fixture
 type Internal struct{}
 `,
-			diags: []string{"test.go:3:1: error: //kanna:fixture takes skip, got nothing"},
+			diags: []string{"test.go:3:1: error: //kanna:fixture needs skip"},
 		},
 		{
 			name: "an unknown argument",
@@ -338,7 +338,7 @@ type Internal struct{}
 //kanna:fixture please
 type Internal struct{}
 `,
-			diags: []string{`test.go:3:1: error: //kanna:fixture takes skip, got "please"`},
+			diags: []string{`test.go:3:1: error: //kanna:fixture takes skip, not "please"`},
 		},
 		{
 			name: "a misspelled argument",
@@ -347,8 +347,8 @@ type Internal struct{}
 //kanna:fixture skp
 type Internal struct{}
 `,
-			diags: []string{`test.go:3:1: error: //kanna:fixture takes skip, got "skp"
-  did you mean "//kanna:fixture skip"?`},
+			diags: []string{`test.go:3:1: error: //kanna:fixture takes skip, not "skp"
+  did you mean "skip"?`},
 		},
 		{
 			name: "the old spelling, which is not read",

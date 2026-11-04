@@ -274,8 +274,8 @@ func Email() model.Email {
 ```console
 ./model.go:3:1: warning: "//kanna:fixtur skip" is not recognized as a directive
   did you mean "//kanna:fixture skip"?
-./model.go:8:1: error: //kanna:fixture takes skip, got "skp"
-  did you mean "//kanna:fixture skip"?
+./model.go:8:1: error: //kanna:fixture takes skip, not "skp"
+  did you mean "skip"?
 ```
 
 対象の構造体が 1 つも残らない場合は、生成時に警告を出し、以前に書き出した `fixture_gen.go` を削除します。
