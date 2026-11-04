@@ -2,6 +2,7 @@ package gen_test
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -113,6 +114,21 @@ func TestCommand_Generates(t *testing.T) {
 	}
 	if code, stdout, _ := run(t, model, "-v"); code != cli.ExitOK || stdout != "unchanged fixture/fixture_gen.go\n" {
 		t.Errorf("-v again = %d, stdout %q; want the file listed as unchanged", code, stdout)
+	}
+}
+
+// A //kanna:fixture a blank line keeps from its struct marks nothing, which is
+// told at the line.
+func TestCommand_WarnsOfALooseDirective(t *testing.T) {
+	t.Parallel()
+
+	src := userSrc + "\n//kanna:fixture skip\n\ntype Draft struct{ Title string }\n"
+	dir := writeModule(t, map[string]string{"model/model.go": src})
+	_, _, stderr := run(t, filepath.Join(dir, "model"))
+	want := fmt.Sprintf("model.go:%d:1: warning: //kanna:fixture is not attached to a declaration, so nothing reads it\n"+
+		"  write it right above what it marks, with no blank line between\n", strings.Count(userSrc, "\n")+2)
+	if !strings.Contains(stderr, want) {
+		t.Errorf("stderr = %q, want it to contain %q", stderr, want)
 	}
 }
 
