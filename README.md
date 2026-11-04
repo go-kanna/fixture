@@ -341,6 +341,7 @@ kanna-fixture [flags] [package]
 |----------------------|--------------------------------------------------------------------------------------------------|
 | `-destination <dir>` | write `fixture_gen.go` into dir (default `fixture`)                                              |
 | `-exclude <names>`   | comma-separated names of structs to skip                                                         |
+| `-tags <list>`       | comma-separated build tags                                                                       |
 | `-check`             | verify the output is up to date instead of writing it, including that no output is left over; `KANNA_CHECK=1` does the same |
 | `-v`                 | list the file written, removed, or left unchanged                                                |
 | `-deps`              | print what a run reads and writes as JSON, for the `kanna` command, and exit                     |

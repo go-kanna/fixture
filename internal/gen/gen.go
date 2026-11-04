@@ -27,6 +27,7 @@ const outputFile = "fixture_gen.go"
 type config struct {
 	destination string
 	exclude     []string
+	tags        string
 }
 
 // Command returns kanna-fixture.
@@ -41,6 +42,7 @@ func Command() cli.Command[config] {
 			"unless -destination names another.",
 		Flags: func(fs *flag.FlagSet, cfg *config) {
 			fs.StringVar(&cfg.destination, "destination", "fixture", "write "+outputFile+" into `dir`")
+			cli.Tags(fs, &cfg.tags)
 			fs.Func("exclude", "skip the structs `names` lists, separated by commas", func(s string) error {
 				for name := range strings.SplitSeq(s, ",") {
 					if name = strings.TrimSpace(name); name != "" {
@@ -60,7 +62,8 @@ func run(dir string, cfg config, patterns []string) ([]output.Change, []diag.Dia
 		return nil, []diag.Diag{diag.Errorf(token.Position{}, "%s reads one package, got %d", generator, len(patterns))}
 	}
 	dest := destination(dir, cfg)
-	set, err := packages.Load(toLoad(dest, patterns), packages.Config{Dir: dir, Regenerated: []string{outputFile}})
+	set, err := packages.Load(toLoad(dest, patterns),
+		packages.Config{Dir: dir, Tags: cfg.tags, Regenerated: []string{outputFile}})
 	if err != nil {
 		return nil, []diag.Diag{diag.Errorf(token.Position{}, "%v", err)}
 	}

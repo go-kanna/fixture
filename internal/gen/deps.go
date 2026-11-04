@@ -13,7 +13,8 @@ import (
 // reportDeps tells what a run in dir reads and writes.
 func reportDeps(dir string, cfg config, patterns []string) (deps.Report, error) {
 	dest := destination(dir, cfg)
-	set, err := packages.Load(toLoad(dest, patterns), packages.Config{Dir: dir, Regenerated: []string{outputFile}})
+	set, err := packages.Load(toLoad(dest, patterns),
+		packages.Config{Dir: dir, Tags: cfg.tags, Regenerated: []string{outputFile}})
 	if err != nil {
 		return deps.Report{}, err //nolint:wrapcheck // it says what could not be loaded
 	}
