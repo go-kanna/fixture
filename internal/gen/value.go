@@ -110,6 +110,10 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 			continue
 		}
 
+		if faked {
+			diags = append(diags, broken(field, fv)...)
+		}
+
 		var (
 			e  expr
 			ok bool
@@ -151,6 +155,53 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 // not fit that length, which is cleared so that the field is numbered instead.
 // A pattern that does not compile is cleared without a word: that is for the
 // validator to report, as is a pattern or a format on what is not a string.
+// broken warns about the fake tag of field, which made fv, where the rules of
+// its validate tag reject what it makes: always, or for some of the numbers a
+// range makes. What a template of text makes is not known before it runs, and
+// fake:"skip" asks for the zero value knowing the rules may reject it, as the
+// way to leave a field the fixture cannot fill.
+func broken(field scan.Field, fv fakeValue) []diag.Diag {
+	wants := wantsOf(field.Tag, field.Type)
+	if len(wants) == 0 {
+		return nil
+	}
+	r := wants[0].rules
+	warn := func(format string) []diag.Diag {
+		return []diag.Diag{diag.Warningf(field.Pos, format+" (field %s)",
+			field.Tag.Get(fakeKey), field.Tag.Get(tagKey), field.Name)}
+	}
+	switch {
+	case fv.fixed != "":
+		if v := fixedValue(fv.fixed); v != nil && !r.admits(v) {
+			return warn("fake tag %q is a value that validate:%q rejects")
+		}
+	case fv.result != types.Invalid && len(fv.args) == 2:
+		low, high := parseNumber(fv.args[0]), parseNumber(fv.args[1])
+		if low == nil || high == nil {
+			return nil
+		}
+		switch all, some := r.admitsRange(low, high, types.Typ[fv.result].Info()&types.IsInteger != 0); {
+		case !some:
+			return warn("fake tag %q makes no value that validate:%q lets through")
+		case !all:
+			return warn("fake tag %q makes some values that validate:%q rejects")
+		}
+	}
+	return nil
+}
+
+// fixedValue reads fixed, the Go literal a fake tag stands for as it is.
+func fixedValue(fixed string) constant.Value {
+	switch fixed {
+	case "true", "false":
+		return constant.MakeBool(fixed == "true")
+	}
+	if s, err := strconv.Unquote(fixed); err == nil {
+		return constant.MakeString(s)
+	}
+	return parseNumber(fixed)
+}
+
 func unkept(field scan.Field, wants []want) []diag.Diag {
 	var diags []diag.Diag
 	warn := func(msg string) {

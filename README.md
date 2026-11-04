@@ -223,7 +223,9 @@ A string field takes any template. A numeric field takes the numeric ones — `{
 `{float32range}`, `{float64range}`, and `{price}` — with a range that fits it; a `time.Time` takes `{date}`, and a UUID
 `{uuid}`. A number or a bool also takes a value as it stands, such as `fake:"42"`, and a named type converts what its
 kind takes. A pointer is set to point to the value, though it would otherwise stay nil. The rules of the field's
-`validate` tag are not applied: the template is the value asked for.
+`validate` tag are not applied: the template is the value asked for. Where what it makes is known before it runs, a
+range of numbers or a value as it stands, generation warns when the rules reject it, always or for some of the numbers.
+`fake:"skip"` leaves the field zero whatever its rules say, as the way to leave a field the fixture cannot fill.
 
 A tagged field is made by a faker seeded with the fixture's number and its type, so the third User made has the same
 name on every run, whatever the fixtures of other types do. Its values are not unique: leave a unique column untagged.
@@ -238,6 +240,7 @@ $ go generate ./...
 ./model.go:10:2: error: fake tag "{email}" cannot fill int (field Count)
 ./model.go:11:2: error: fake tag "{number:1,300}": 300 does not fit int8 (field Level)
 ./model.go:14:2: warning: values generated from the pattern do not match it; give the field a fake tag (field Code)
+./model.go:15:2: warning: fake tag "{number:1,10}" makes no value that validate:"gte=18" lets through (field Adult)
 ```
 
 ## Structs
