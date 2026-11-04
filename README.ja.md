@@ -194,7 +194,7 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 | `fake:"123-4567"` | その値のまま（固定） |
 | `fake:"skip"` または `fake:"-"` | ゼロ値 |
 
-文字列のフィールドには、どのテンプレートも使えます。数値のフィールドには、そのフィールドに収まる範囲で、数値のテンプレート（`{number}`、`{intrange}`、`{uintrange}`、`{float32range}`、`{float64range}`、`{price}`）を使います。`time.Time` には `{date}`、UUID には `{uuid}` を使います。数値と bool には、`fake:"42"` のように値をそのまま書くこともできます。名前付き型は、基底型が受け取るものを変換します。ポインタは、通常なら nil のままですが、値を指すように設定されます。フィールドの `validate` タグのルールは適用されません。テンプレートこそが指定された値だからです。
+文字列のフィールドには、どのテンプレートも使えます。数値のフィールドには、そのフィールドに収まる範囲で、数値のテンプレート（`{number}`、`{intrange}`、`{uintrange}`、`{float32range}`、`{float64range}`、`{price}`）を使います。`time.Time` には `{date}`、UUID には `{uuid}` を使います。数値と bool には、`fake:"42"` のように値をそのまま書くこともできます。名前付き型は、基底型が受け取るものを変換します。ポインタは、通常なら nil のままですが、値を指すように設定されます。フィールドの `validate` タグのルールは適用されません。テンプレートこそが指定された値だからです。数値の範囲やそのまま書いた値のように、作られる値が実行前に分かるときは、ルールがそれを拒否すれば（いつも、または一部の数値で）、生成時に警告します。`fake:"skip"` は、ルールにかかわらずフィールドをゼロのままにします。フィクスチャが埋められないフィールドをゼロのままにする手段だからです。
 
 タグ付きのフィールドは、フィクスチャの番号と型をシードにした faker で作られます。そのため、3 番目に作られた User は、他の型のフィクスチャがどう動いても、どの実行でも同じ名前になります。その値は一意ではないので、一意なカラムにはタグを付けないでください。
 
@@ -207,6 +207,7 @@ $ go generate ./...
 ./model.go:10:2: error: fake tag "{email}" cannot fill int (field Count)
 ./model.go:11:2: error: fake tag "{number:1,300}": 300 does not fit int8 (field Level)
 ./model.go:14:2: warning: values generated from the pattern do not match it; give the field a fake tag (field Code)
+./model.go:15:2: warning: fake tag "{number:1,10}" makes no value that validate:"gte=18" lets through (field Adult)
 ```
 
 ## 構造体

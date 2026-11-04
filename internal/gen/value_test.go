@@ -466,6 +466,53 @@ type Person struct {
 	}
 }
 
+// A fake tag that makes a value its rules reject is warned about, as far as
+// what it makes is known before it runs: a range of numbers, or a value as it
+// stands. fake:"skip" is the way to leave a field zero, rules or not.
+func TestFill_FakeBreakingRules(t *testing.T) {
+	t.Parallel()
+
+	_, diags := fill(t, `package model
+
+type Person struct {
+	Age    int     `+"`"+`fake:"{number:1,10}" validate:"gte=18"`+"`"+`
+	Rank   int     `+"`"+`fake:"{number:1,10}" validate:"gte=5"`+"`"+`
+	Grade  int     `+"`"+`fake:"{number:1,10}" validate:"gt=0,lte=10"`+"`"+`
+	Code   int     `+"`"+`fake:"42" validate:"lte=10"`+"`"+`
+	Slug   string  `+"`"+`fake:"abcdef" validate:"max=5"`+"`"+`
+	Kind   string  `+"`"+`fake:"c" validate:"oneof=a b"`+"`"+`
+	Level  int     `+"`"+`fake:"{number:1,3}" validate:"oneof=5 6"`+"`"+`
+	Pick   int     `+"`"+`fake:"{number:1,3}" validate:"oneof=2 6"`+"`"+`
+	Odd    int     `+"`"+`fake:"{number:0,3}" validate:"required"`+"`"+`
+	Ok     int     `+"`"+`fake:"{number:0,3}" validate:"omitempty,gte=1"`+"`"+`
+	Few    int     `+"`"+`fake:"{number:0,3}" validate:"omitempty,gte=2"`+"`"+`
+	Except int     `+"`"+`fake:"{number:1,3}" validate:"ne=2"`+"`"+`
+	Rate   float64 `+"`"+`fake:"{float64range:0.5,1.5}" validate:"lt=1"`+"`"+`
+	Name   string  `+"`"+`fake:"{firstname}" validate:"max=3"`+"`"+`
+	Gone   string  `+"`"+`fake:"skip" validate:"required"`+"`"+`
+}
+`)
+
+	want := []string{
+		`test.go:4:2: warning: fake tag "{number:1,10}" makes no value that validate:"gte=18" lets through (field Age)`,
+		`test.go:5:2: warning: fake tag "{number:1,10}" makes some values that validate:"gte=5" rejects (field Rank)`,
+		`test.go:7:2: warning: fake tag "42" is a value that validate:"lte=10" rejects (field Code)`,
+		`test.go:8:2: warning: fake tag "abcdef" is a value that validate:"max=5" rejects (field Slug)`,
+		`test.go:9:2: warning: fake tag "c" is a value that validate:"oneof=a b" rejects (field Kind)`,
+		`test.go:10:2: warning: fake tag "{number:1,3}" makes no value that validate:"oneof=5 6" lets through (field Level)`,
+		`test.go:11:2: warning: fake tag "{number:1,3}" makes some values that validate:"oneof=2 6" rejects (field Pick)`,
+		`test.go:12:2: warning: fake tag "{number:0,3}" makes some values that validate:"required" rejects (field Odd)`,
+		`test.go:14:2: warning: fake tag "{number:0,3}" makes some values that validate:"omitempty,gte=2" ` +
+			`rejects (field Few)`,
+		`test.go:15:2: warning: fake tag "{number:1,3}" makes some values that validate:"ne=2" rejects (field Except)`,
+		`test.go:16:2: warning: fake tag "{float64range:0.5,1.5}" makes some values that validate:"lt=1" ` +
+			`rejects (field Rate)`,
+	}
+	if !slices.Equal(diags, want) {
+		t.Errorf("diagnostics =\n\t%s\nwant\n\t%s", strings.Join(diags, "\n\t"), strings.Join(want, "\n\t"))
+	}
+}
+
 func TestFill_Fixtures(t *testing.T) {
 	t.Parallel()
 

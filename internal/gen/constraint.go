@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // tagKey is the struct tag whose rules a fixture is filled to pass.
@@ -46,6 +47,9 @@ type want struct {
 	// unknown are the rules kanna-fixture does not know, as written, which the
 	// value it fills may break.
 	unknown []string
+
+	// rules are the rules of the level as read, which a fake tag is held to.
+	rules *reader
 }
 
 // elements returns how many elements a slice that w asks for holds. required
@@ -197,6 +201,18 @@ func (b bound) under(v constant.Value) bool {
 	}
 }
 
+// over reports whether v keeps within b, taken as a lower bound.
+func (b bound) over(v constant.Value) bool {
+	switch {
+	case b.value == nil:
+		return true
+	case b.open:
+		return constant.Compare(v, token.GTR, b.value)
+	default:
+		return constant.Compare(v, token.GEQ, b.value)
+	}
+}
+
 // reader collects the rules of one level, for a value of type typ.
 type reader struct {
 	typ   types.Type
@@ -208,6 +224,10 @@ type reader struct {
 	lower, upper bound
 	equal        []string
 	not          []constant.Value
+
+	// optional reports omitempty, omitnil, or omitzero, which let the zero
+	// value through whatever the other rules say.
+	optional bool
 }
 
 func newReader(t types.Type) *reader {
@@ -237,6 +257,8 @@ func (r *reader) add(name, param string) {
 		return
 	}
 	switch name {
+	case "omitempty", "omitnil", "omitzero":
+		r.optional = true
 	case "required":
 		r.w.required = true
 	case "email", "url", "uuid":
@@ -327,6 +349,7 @@ func (r *reader) want() want {
 	case r.shape == shapeFloat:
 		r.float(b)
 	}
+	r.w.rules = r
 	return r.w
 }
 
@@ -337,6 +360,103 @@ func (r *reader) rulesOut(v constant.Value) bool {
 		return true
 	}
 	return slices.ContainsFunc(r.not, func(n constant.Value) bool { return constant.Compare(n, token.EQL, v) })
+}
+
+// admits reports whether the rules let v, a number or a string, through, as
+// far as kanna-fixture reads them: required, the bounds, the length, eq, oneof,
+// and ne. A format, a pattern, or a rule it does not know may still reject v.
+func (r *reader) admits(v constant.Value) bool {
+	switch {
+	case r.optional && isZero(v):
+		return true
+	case r.rulesOut(v):
+		return false
+	case v.Kind() == constant.String:
+		n := utf8.RuneCountInString(constant.StringVal(v))
+		return n >= r.w.minLen && (r.w.maxLen < 0 || n <= r.w.maxLen) &&
+			(len(r.w.choices) == 0 || slices.Contains(r.w.choices, constant.StringVal(v)))
+	case v.Kind() == constant.Bool:
+		return true
+	}
+	return r.lower.over(v) && r.upper.under(v) && (len(r.equal) == 0 || slices.ContainsFunc(r.equal, func(s string) bool {
+		e := parseNumber(s)
+		return e != nil && constant.Compare(e, token.EQL, v)
+	}))
+}
+
+// admitsRange reports whether the rules let through every number from low to
+// high, both included, and whether they let through any, whole numbers only
+// when integer is set: what a fake tag such as {number:1,10} makes.
+func (r *reader) admitsRange(low, high constant.Value, integer bool) (all, some bool) {
+	inside := func(v constant.Value) bool {
+		return constant.Compare(v, token.GEQ, low) && constant.Compare(v, token.LEQ, high) && (!integer || isInteger(v))
+	}
+	one := constant.Compare(low, token.EQL, high)
+	if len(r.equal) > 0 {
+		some = slices.ContainsFunc(r.equal, func(s string) bool {
+			e := parseNumber(s)
+			return e != nil && inside(e) && r.admits(e)
+		})
+		return one && some, some
+	}
+
+	from, to := low, high
+	if b := r.lower; b.value != nil {
+		if v := b.value; integer {
+			from = maxValue(from, ceil(v, b.open))
+		} else {
+			from = maxValue(from, v)
+		}
+	}
+	if b := r.upper; b.value != nil {
+		if v := b.value; integer {
+			to = minValue(to, floor(v, b.open))
+		} else {
+			to = minValue(to, v)
+		}
+	}
+	all, some = r.lower.over(low) && r.upper.under(high), constant.Compare(from, token.LEQ, to)
+	if zero := constant.MakeInt64(0); inside(zero) {
+		switch {
+		case r.optional:
+			all, some = r.keepsRest(low, high, integer), true
+		case r.w.required:
+			all, some = false, some && !one
+		}
+	}
+	for _, v := range r.not {
+		if inside(v) {
+			all, some = false, some && !one
+		}
+	}
+	return all, some
+}
+
+// keepsRest reports whether the bounds keep every number from low to high but
+// zero, which lies between them and passes as omitempty lets it.
+func (r *reader) keepsRest(low, high constant.Value, integer bool) bool {
+	lowOK, highOK := r.lower.over(low), r.upper.under(high)
+	if !lowOK && constant.Sign(low) == 0 {
+		lowOK = integer && r.lower.over(constant.MakeInt64(1)) || !integer && constant.Sign(r.lower.value) == 0
+	}
+	if !highOK && constant.Sign(high) == 0 {
+		highOK = integer && r.upper.under(constant.MakeInt64(-1)) || !integer && constant.Sign(r.upper.value) == 0
+	}
+	return lowOK && highOK
+}
+
+func maxValue(a, b constant.Value) constant.Value {
+	if constant.Compare(a, token.GEQ, b) {
+		return a
+	}
+	return b
+}
+
+func minValue(a, b constant.Value) constant.Value {
+	if constant.Compare(a, token.LEQ, b) {
+		return a
+	}
+	return b
 }
 
 // integer works out the range of an integer of type b, or the one value to
