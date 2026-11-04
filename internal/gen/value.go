@@ -330,8 +330,8 @@ func (fl *filler) ruleKept(named *types.Named) bool {
 // written returns the call of the fixture of t written by hand in the
 // destination: a function named after t that returns it, callable as the
 // generated code calls it. It takes nothing, or, as a generated fixture does,
-// setters for a struct, or, for a value type, the faker of the fixture
-// calling it, seeded as for a field tagged fake.
+// setters for a struct, or, for any other type, a value type included, the
+// faker of the fixture calling it, seeded as for a field tagged fake.
 func (fl *filler) written(t *types.Named) (expr, bool) {
 	fn, ok := fl.hand[t.Obj().Name()]
 	if !ok {
@@ -344,13 +344,15 @@ func (fl *filler) written(t *types.Named) (expr, bool) {
 	}
 	call := expr{text: fn.Name() + "()", typ: t}
 	_, isValue := valuetype.Of(t)
+	_, isStruct := t.Underlying().(*types.Struct)
+	setters := isStruct && !isValue
 	switch params := sig.Params(); {
 	case params.Len() == 0:
 		return call, true
 	case params.Len() != 1:
-	case sig.Variadic() && !isValue && isSetters(params.At(0).Type(), t):
+	case sig.Variadic() && setters && isSetters(params.At(0).Type(), t):
 		return call, true
-	case !sig.Variadic() && isValue && isFaker(params.At(0).Type()):
+	case !sig.Variadic() && !setters && isFaker(params.At(0).Type()):
 		return expr{text: fn.Name() + "(" + fl.f + ")", typ: t, usesF: true}, true
 	}
 	return expr{}, false
@@ -550,22 +552,17 @@ func rest(wants []want) []want {
 	return nil
 }
 
-// named works out the value of a named type that has one of its own: a struct
-// with a fixture, time.Time, a UUID, a value type of kanna-value, or a type
-// with constants declared beside it. It reports false for any other.
+// named works out the value of a named type that has one of its own: one with
+// a fixture written by hand, a struct with a fixture, time.Time, a UUID, a
+// value type of kanna-value, or an enum. It reports false for any other.
 func (fl *filler) named(s scan.Struct, t *types.Named, w want) (expr, bool) {
+	if e, ok := fl.written(t); ok {
+		return e, true
+	}
 	// The fixtures live in another package, so only an exported value type,
 	// and so an exported constructor, can be made there.
 	if v, ok := valuetype.Of(t); ok && t.Obj().Exported() && v.Constructor != nil {
-		if e, ok := fl.written(t); ok {
-			return e, true
-		}
 		return fl.valueType(s, v, w)
-	}
-	if _, isStruct := t.Underlying().(*types.Struct); isStruct {
-		if e, ok := fl.written(t); ok {
-			return e, true
-		}
 	}
 
 	switch {
@@ -591,8 +588,12 @@ func (fl *filler) named(s scan.Struct, t *types.Named, w want) (expr, bool) {
 		// The rules of the field say which values it takes.
 		return expr{}, false
 	}
-	if c := firstConstant(fl.fset, t); c != nil {
-		return expr{text: fl.imports.Qualifier(c.Pkg()) + "." + c.Name(), typ: t}, true
+	// Constants of any other type, such as time.Nanosecond or a MaxRetries,
+	// are no choices to pick from.
+	if _, ok := enumtype.Of(t); ok {
+		if c := firstConstant(fl.fset, t); c != nil {
+			return expr{text: fl.imports.Qualifier(c.Pkg()) + "." + c.Name(), typ: t}, true
+		}
 	}
 	return expr{}, false
 }

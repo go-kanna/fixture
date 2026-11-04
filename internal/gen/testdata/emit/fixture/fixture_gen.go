@@ -153,7 +153,7 @@ func User(setters ...func(*model.User)) model.User {
 		Email:     fmt.Sprintf("email-%d@example.com", n),
 		Age:       int(18 + (n-1)%113),
 		Role:      model.RoleAdmin,
-		Status:    model.StatusActive,
+		Status:    Status(),
 		CreatedAt: time.Date(2000, time.January, 1, 0, 0, int(n), 0, time.UTC),
 	}
 	for _, set := range setters {

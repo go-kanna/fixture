@@ -28,3 +28,9 @@ func Owner(setters ...func(*model.Owner)) model.Owner {
 	}
 	return o
 }
+
+// Status is the fixture of model.Status, an enum of int, whose constants a
+// fixture does not pick from as it does those of an enum of string.
+func Status() model.Status {
+	return model.StatusActive
+}

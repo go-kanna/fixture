@@ -125,7 +125,8 @@ u := fixture.User(member, func(u *model.User) { u.Age = 70 })
 |---|---|
 | `fake` タグ付き | [fake タグ](#fake-タグ)を参照 |
 | この実行でフィクスチャが生成される構造体 | そのフィクスチャ: `Author: User()`。再帰することになるものはゼロ値のまま（`required` のポインタなら `new(T)`）で、警告する |
-| 同じパッケージにその型の定数が宣言されている名前付き型 | ゼロ値でない最初の定数: `model.RoleAdmin` |
+| [手で書いたフィクスチャ](#手で書くフィクスチャ)のある型 | そのフィクスチャ: `Status()` |
+| enum（同じパッケージにその型の定数が宣言されている、名前付きの string 型） | ゼロ値でない最初の定数: `model.RoleAdmin` |
 | [kanna-value](https://github.com/go-kanna/value) の値オブジェクト | 型と同じ名前のフィールドに入る値をコンストラクタに渡した結果 |
 | `time.Time` | 2000-01-01T00:00:00Z の n 秒後 |
 | 標準ライブラリまたは `github.com/google/uuid` の `uuid.UUID` | 末尾が n の UUID: `00000000-0000-4000-8000-000000000001` |
@@ -244,8 +245,17 @@ func User(setters ...func(*model.User)) model.User {
 
 | 型 | 関数 |
 |---|---|
-| 値オブジェクト | `func T() model.T`、または呼び出すフィクスチャの faker を受け取る `func T(f *gofakeit.Faker) model.T` |
-| 構造体 | `func T() model.T`、または生成されるフィクスチャと同じ `func T(setters ...func(*model.T)) model.T` |
+| 構造体（値オブジェクトを除く） | `func T() model.T`、または生成されるフィクスチャと同じ `func T(setters ...func(*model.T)) model.T` |
+| そのほかの名前付き型 | `func T() model.T`、または呼び出すフィクスチャの faker を受け取る `func T(f *gofakeit.Faker) model.T` |
+
+string の enum 以外の型の定数（`time.Duration` や int の enum の定数）は、フィクスチャが選ぶ選択肢になりません。番号を変換します（`model.Status(n)`）。決まった値にしたいときは、その型のフィクスチャを書きます:
+
+```go
+// fixture/status.go
+func Status() model.Status {
+	return model.StatusActive
+}
+```
 
 そのような構造体のフィクスチャは生成されず、ほかのフィクスチャは、`//kanna:fixture skip` が付いているかどうかによらず、この関数を呼びます。faker は、`fake` タグのフィールドと同じく、呼び出すフィクスチャの番号と型から種を決めたものです。そのため、3 番目に作った User は、毎回同じニックネームになります。この関数が作る値は一意ではありません。一意でなければならないときは、自分で数えてください:
 
