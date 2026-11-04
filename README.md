@@ -324,8 +324,8 @@ with a fixture and say nothing, and `//kanna:fixture` with an argument other tha
 ```console
 ./model.go:3:1: warning: "//kanna:fixtur skip" is not recognized as a directive
   did you mean "//kanna:fixture skip"?
-./model.go:8:1: error: //kanna:fixture takes skip, got "skp"
-  did you mean "//kanna:fixture skip"?
+./model.go:8:1: error: //kanna:fixture takes skip, not "skp"
+  did you mean "skip"?
 ```
 
 When no struct is left, generation warns and removes the `fixture_gen.go` it wrote before.

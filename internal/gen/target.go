@@ -6,7 +6,6 @@ import (
 	"go/token"
 	"go/types"
 	"slices"
-	"strconv"
 
 	"github.com/go-kanna/internal/diag"
 	"github.com/go-kanna/internal/directive"
@@ -59,9 +58,8 @@ func targets(fset *token.FileSet, structs []scan.Struct, exclude []string) ([]sc
 		diags = append(diags, ds...)
 		switch {
 		case d.Found:
-			if d.Args != skip {
-				diags = append(diags, badArgs(d))
-			}
+			_, ds := d.Parse(directive.Spec{Words: []string{skip}, Needed: true})
+			diags = append(diags, ds...)
 		case slices.Contains(exclude, s.Name):
 		case s.Named.TypeParams().Len() > 0:
 			diags = append(diags, diag.Warningf(s.Pos,
@@ -110,20 +108,6 @@ func unplaced(fset *token.FileSet, decls []scan.Type) []diag.Diag {
 			WithHints("remove it"))
 	}
 	return diags
-}
-
-// badArgs reports d, a //kanna:fixture whose arguments are not skip, the one
-// argument it takes.
-func badArgs(d directive.Directive) diag.Diag {
-	got := "nothing"
-	if d.Args != "" {
-		got = strconv.Quote(d.Args)
-	}
-	e := diag.Errorf(d.Pos, "//kanna:%s takes %s, got %s", directiveKey, skip, got)
-	if want, ok := suggest.Closest(d.Args, []string{skip}); ok {
-		e = e.WithHints(fmt.Sprintf("did you mean %q?", "//kanna:"+directiveKey+" "+want))
-	}
-	return e
 }
 
 // unknownExcludes warns about each name in exclude that is not among exported,
