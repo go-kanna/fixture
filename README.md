@@ -192,7 +192,7 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 | `eqfield=Field`                                    | the other field's value                                                                                   |
 | `email`, `url`, `uuid`                             | that format, numbered within `min` and `max`: `em-0001@example.com` for `len=19`                          |
 | `pattern=regexp`, which only kanna-validate has    | a string gofakeit generates from the expression                                                           |
-| `rule=Type`, which only kanna-validate has         | the first constant of an enum, or what a field named after a value type would hold; a type with a `Validate` of its own is warned about |
+| `rule=Type`, which only kanna-validate has         | the first constant of an enum, or what a field named after a value type would hold                       |
 | `dive`                                             | the rules after it, for each element made                                                                 |
 
 `Type` of `rule=Type` is read as kanna-validate reads it: a bare name is a type of the struct's package, and `pkg.Type`
