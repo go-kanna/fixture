@@ -154,7 +154,8 @@ func TestCommand_Flags(t *testing.T) {
 	if code, _, stderr := run(t, dir, "-destination", "testing/fx", "./model"); code != cli.ExitOK {
 		t.Fatalf("run with a doc.go = %d, stderr %q", code, stderr)
 	}
-	if got := readFile(t, filepath.Join(dir, "testing", "fx", "fixture_gen.go")); !strings.Contains(got, "package fixtures\n") {
+	got = readFile(t, filepath.Join(dir, "testing", "fx", "fixture_gen.go"))
+	if !strings.Contains(got, "package fixtures\n") {
 		t.Errorf("testing/fx/fixture_gen.go is not package fixtures, as the doc.go declares:\n%s", got)
 	}
 }
