@@ -30,6 +30,7 @@ type User struct {
 	Name      string `fake:"{firstname} {lastname}"`
 	Email     string `validate:"required,email"`
 	Age       int    `validate:"gte=18,lte=130"`
+	Floor     int    `validate:"gte=1,lte=20,ne=4,ne=13"`
 	Role      Role
 	Status    Status
 	Nickname  *string

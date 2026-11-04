@@ -187,7 +187,7 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 | `gt`, `gte`, `lt`, `lte`, `min`, `max` on integers | n, counted from the lower bound, or from 1, and wrapping within the upper: `gt=0` → 1, 2, 3, …            |
 | `gt`, `gte`, `lt`, `lte`, `min`, `max` on floats   | the lowest value they allow, or the highest without a lower bound: `gt=0` → `1`                           |
 | `eq`                                               | that value                                                                                                |
-| `ne`                                               | another value: the next choice of a `oneof`, or where it rules out part of a range, the lowest value left |
+| `ne`                                               | another value: the next choice of a `oneof`, an integer counted past it, `skipping(1+(n-1)%9, 2)` for `gte=1,lte=10,ne=2`, or the lowest float left |
 | `oneof=a b c`                                      | the first: `"admin"`                                                                                      |
 | `eqfield=Field`                                    | the other field's value                                                                                   |
 | `email`, `url`, `uuid`                             | that format, numbered within `min` and `max`: `em-0001@example.com` for `len=19`                          |

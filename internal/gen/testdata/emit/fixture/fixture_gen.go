@@ -152,6 +152,7 @@ func User(setters ...func(*model.User)) model.User {
 		Name:      mustGenerate(f, "{firstname} {lastname}"),
 		Email:     fmt.Sprintf("email-%d@example.com", n),
 		Age:       int(18 + (n-1)%113),
+		Floor:     int(skipping(1+(n-1)%18, 4, 13)),
 		Role:      model.RoleAdmin,
 		Status:    Status(),
 		CreatedAt: time.Date(2000, time.January, 1, 0, 0, int(n), 0, time.UTC),
@@ -175,4 +176,12 @@ func orPanic[T any](v T, err error) T {
 		panic(fmt.Sprintf("kanna-fixture: %s rejects the value guessed for it: %v; write func %s() %s in package fixture for its fixtures, or tag the field fake:\"skip\"", t, err, t.Name(), t))
 	}
 	return v
+}
+func skipping(x int64, excluded ...int64) int64 {
+	for _, e := range excluded {
+		if x >= e {
+			x++
+		}
+	}
+	return x
 }

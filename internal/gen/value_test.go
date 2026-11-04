@@ -197,6 +197,7 @@ type SignUp struct {
 	Ref      string            `+"`"+`validate:"uuid,max=20"`+"`"+`
 	Bigger   uint64            `+"`"+`validate:"gte=9223372036854775808,lte=9223372036854775810"`+"`"+`
 	Biggest  uint64            `+"`"+`validate:"gte=18446744073709551615"`+"`"+`
+	Floor    int               `+"`"+`validate:"gte=1,lte=20,ne=13,ne=4"`+"`"+`
 }
 `)
 
@@ -245,6 +246,7 @@ type SignUp struct {
 		`Ref: fmt.Sprintf("ref-%d", n)`,
 		"Bigger: 9223372036854775808 + (uint64(n)-1)%3",
 		"Biggest: 18446744073709551615",
+		"Floor: int(skipping(1 + (n-1)%18, 4, 13))",
 		"Confirm = Password",
 		"uses n",
 		"uses f",

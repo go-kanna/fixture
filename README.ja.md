@@ -171,7 +171,7 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 | 整数の `gt`、`gte`、`lt`、`lte`、`min`、`max` | 下限から（下限がなければ 1 から）数えた n。上限の範囲内で折り返す: `gt=0` → 1, 2, 3, … |
 | 浮動小数点数の `gt`、`gte`、`lt`、`lte`、`min`、`max` | 許される最小の値。下限がなければ最大の値: `gt=0` → `1` |
 | `eq` | その値 |
-| `ne` | 別の値: `oneof` の次の選択肢。範囲の一部を除外する場合は、残った中で最小の値 |
+| `ne` | 別の値: `oneof` の次の選択肢。整数はその値を飛ばして数える（`gte=1,lte=10,ne=2` なら `skipping(1+(n-1)%9, 2)`）。浮動小数点数は残った中で最小の値 |
 | `oneof=a b c` | 先頭の値: `"admin"` |
 | `eqfield=Field` | 指定したフィールドの値 |
 | `email`、`url`、`uuid` | その形式の値。`min` と `max` の範囲内で番号を付ける: `len=19` なら `em-0001@example.com` |

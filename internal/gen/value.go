@@ -40,8 +40,9 @@ type expr struct {
 
 	// usesN, usesF, and generates report whether it calls for the number of
 	// the fixture, its faker, and the helper calling Faker.Generate; usesOrPanic,
-	// for the helper keeping what a value type's constructor returns.
-	usesN, usesF, generates, usesOrPanic bool
+	// for the helper keeping what a value type's constructor returns; skips, for
+	// the one counting past what ne leaves out.
+	usesN, usesF, generates, usesOrPanic, skips bool
 }
 
 // assignment sets field to value.
@@ -60,8 +61,8 @@ type filled struct {
 	// usesN, usesF, and generates report whether the values call for the
 	// number of the fixture, its faker, and the helper calling Faker.Generate;
 	// usesOrPanic, for the helper keeping what a value type's constructor
-	// returns.
-	usesN, usesF, generates, usesOrPanic bool
+	// returns; skips, for the one counting past what ne leaves out.
+	usesN, usesF, generates, usesOrPanic, skips bool
 }
 
 // filler works out the values of the fixtures of one generated file.
@@ -75,9 +76,10 @@ type filler struct {
 	// targets are the structs that get a fixture, by the name of their type.
 	targets map[*types.TypeName]bool
 
-	// generate names the helper that calls Faker.Generate, and orPanic the
-	// one that keeps what a value type's constructor returns.
-	generate, orPanic string
+	// generate names the helper that calls Faker.Generate, orPanic the one
+	// that keeps what a value type's constructor returns, and skipping the one
+	// counting past what ne leaves out.
+	generate, orPanic, skipping string
 
 	// hand holds the functions written by hand in the destination, by name,
 	// among which written finds the fixture of a type.
@@ -143,6 +145,7 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 		out.usesF = out.usesF || e.usesF
 		out.generates = out.generates || e.generates
 		out.usesOrPanic = out.usesOrPanic || e.usesOrPanic
+		out.skips = out.skips || e.skips
 	}
 	out.copies = inOrder(out.copies)
 	return out, diags
@@ -800,9 +803,17 @@ func (fl *filler) integer(t types.Type, b *types.Basic, w want) expr {
 	case high == math.MaxInt64:
 		text = fl.n
 	default:
-		text = fmt.Sprintf("%d + (%s-1)%%%d", low, fl.n, high-low+1)
+		text = fmt.Sprintf("%d + (%s-1)%%%d", low, fl.n, high-low+1-int64(len(w.skip)))
 	}
-	return fl.convert(expr{text: text, typ: types.Typ[types.Int64], usesN: true}, t)
+	e := expr{text: text, typ: types.Typ[types.Int64], usesN: true}
+	if len(w.skip) > 0 {
+		args := []string{text}
+		for _, v := range w.skip {
+			args = append(args, strconv.FormatInt(v, 10))
+		}
+		e.text, e.skips = fl.skipping+"("+strings.Join(args, ", ")+")", true
+	}
+	return fl.convert(e, t)
 }
 
 // beyondInt64 works out the value of an integer whose lower bound lies beyond
