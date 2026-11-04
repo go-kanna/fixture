@@ -300,7 +300,7 @@ func ruleType(s scan.Struct, ref string) (*types.Named, error) {
 // unkeptRules warns about each rule= of wants, the rules of field of s, that the
 // fixture cannot keep: one naming no type it can read, or a type that is
 // neither an enum with a constant to take nor a value type of kanna-value,
-// such as one with a Validate method, which it does not run.
+// which kanna-validate refuses too.
 func (fl *filler) unkeptRules(s scan.Struct, field scan.Field, wants []want) []diag.Diag {
 	var diags []diag.Diag
 	for _, w := range wants {

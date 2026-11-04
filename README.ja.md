@@ -176,7 +176,7 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 | `eqfield=Field` | 指定したフィールドの値 |
 | `email`、`url`、`uuid` | その形式の値。`min` と `max` の範囲内で番号を付ける: `len=19` なら `em-0001@example.com` |
 | `pattern=regexp`（kanna-validate にのみある） | gofakeit が正規表現から生成する文字列 |
-| `rule=Type`（kanna-validate にのみある） | enum なら最初の定数、値オブジェクトならその型の名前のフィールドが保持するはずの値。`Validate` を自分で持つ型は警告する |
+| `rule=Type`（kanna-validate にのみある） | enum なら最初の定数、値オブジェクトならその型の名前のフィールドが保持するはずの値 |
 | `dive` | `dive` より後のルールを、作られた各要素に適用 |
 
 `rule=Type` の `Type` は、kanna-validate と同じように読みます。修飾なしの名前は構造体のパッケージの型、`pkg.Type` は構造体のファイルが `pkg` として import している（ほかで使わなければ `_` で）パッケージの型です。
