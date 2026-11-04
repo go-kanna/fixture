@@ -340,7 +340,6 @@ kanna-fixture [flags] [package]
 | Flag                 | Meaning                                                                                          |
 |----------------------|--------------------------------------------------------------------------------------------------|
 | `-destination <dir>` | write `fixture_gen.go` into dir (default `fixture`)                                              |
-| `-package <name>`    | call the package name when the destination has no Go files yet (default: the directory's name)   |
 | `-exclude <names>`   | comma-separated names of structs to skip                                                         |
 | `-check`             | verify the output is up to date instead of writing it, including that no output is left over; `KANNA_CHECK=1` does the same |
 | `-v`                 | list the file written, removed, or left unchanged                                                |
@@ -353,12 +352,13 @@ module writes `fixture/` there. Paths are relative to the directory `go generate
 `//go:generate` line.
 
 The destination is a package other than the model, which its fixtures import. It may hold hand-written files too: their
-package is the one the generated file joins, and `-package` naming another is an error; a fixture whose name they
-already declare stops generation. They may call the fixtures before the first run has written them: kanna-fixture
-type-checks them once more with what it is about to write in place, and writes nothing while they do not compile with
-it, so a mistake a missing fixture hid is reported then, and a fixture they still call is not removed. Tests in other
-packages are not loaded, so `go vet` tells of a fixture they call that is gone. A run that succeeds prints nothing but
-its warnings. A file named `fixture_gen.go` without the generated-code header is never touched.
+package is the one the generated file joins, which is named after the directory without them: write a `doc.go` there,
+`package fixtures`, for another name. A fixture whose name they already declare stops generation. They may call the
+fixtures before the first run has written them: kanna-fixture type-checks them once more with what it is about to write
+in place, and writes nothing while they do not compile with it, so a mistake a missing fixture hid is reported then, and
+a fixture they still call is not removed. Tests in other packages are not loaded, so `go vet` tells of a fixture they
+call that is gone. A run that succeeds prints nothing but its warnings. A file named `fixture_gen.go` without the
+generated-code header is never touched.
 
 ## Example
 

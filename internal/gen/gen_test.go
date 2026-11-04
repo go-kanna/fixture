@@ -139,20 +139,24 @@ func TestCommand_Flags(t *testing.T) {
 		"model/model.go": userSrc + "\ntype Internal struct{ Token string }\n",
 	})
 
-	code, _, stderr := run(t, dir, "-destination", "testing/fx", "-package", "fx", "-exclude", "Internal", "./model")
+	code, _, stderr := run(t, dir, "-destination", "testing/fx", "-exclude", "Internal", "./model")
 	if code != cli.ExitOK || stderr != "" {
 		t.Fatalf("run = %d, stderr %q", code, stderr)
 	}
 	got := readFile(t, filepath.Join(dir, "testing", "fx", "fixture_gen.go"))
 	if !strings.Contains(got, "package fx\n") || strings.Contains(got, "func Internal(") {
-		t.Errorf("testing/fx/fixture_gen.go is not package fx without Internal:\n%s", got)
+		t.Errorf("testing/fx/fixture_gen.go is not package fx, after its directory, without Internal:\n%s", got)
 	}
 
-	// The destination's own Go files name its package, whatever -package says.
-	writeFile(t, filepath.Join(dir, "testing", "fx", "doc.go"), "package fx\n")
-	code, _, stderr = run(t, dir, "-destination", "testing/fx", "-package", "other", "./model")
-	if code != cli.ExitFailure || !strings.Contains(stderr, "testing/fx: error:") {
-		t.Errorf("a -package the destination contradicts = %d, stderr %q; want an error at the destination", code, stderr)
+	// The destination's own Go files name its package, as Go has it: a doc.go
+	// written by hand for another name.
+	writeFile(t, filepath.Join(dir, "testing", "fx", "doc.go"), "// Package fixtures holds fixtures.\npackage fixtures\n")
+	if code, _, stderr := run(t, dir, "-destination", "testing/fx", "./model"); code != cli.ExitOK {
+		t.Fatalf("run with a doc.go = %d, stderr %q", code, stderr)
+	}
+	got = readFile(t, filepath.Join(dir, "testing", "fx", "fixture_gen.go"))
+	if !strings.Contains(got, "package fixtures\n") {
+		t.Errorf("testing/fx/fixture_gen.go is not package fixtures, as the doc.go declares:\n%s", got)
 	}
 }
 

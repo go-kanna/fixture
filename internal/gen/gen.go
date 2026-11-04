@@ -26,7 +26,6 @@ const outputFile = "fixture_gen.go"
 // config holds what kanna-fixture's own flags set.
 type config struct {
 	destination string
-	pkg         string
 	exclude     []string
 }
 
@@ -42,8 +41,6 @@ func Command() cli.Command[config] {
 			"unless -destination names another.",
 		Flags: func(fs *flag.FlagSet, cfg *config) {
 			fs.StringVar(&cfg.destination, "destination", "fixture", "write "+outputFile+" into `dir`")
-			fs.StringVar(&cfg.pkg, "package", "",
-				"call the package `name` when the destination has no Go files yet (default: the directory's name)")
 			fs.Func("exclude", "skip the structs `names` lists, separated by commas", func(s string) error {
 				for name := range strings.SplitSeq(s, ",") {
 					if name = strings.TrimSpace(name); name != "" {
@@ -85,7 +82,7 @@ func run(dir string, cfg config, patterns []string) ([]output.Change, []diag.Dia
 			"the destination is %s itself, which the fixtures import", pkg.PkgPath).
 			WithHints("name a directory of their own with -destination")}
 	}
-	destName, err := output.PackageName(dest, outputFile, cfg.pkg)
+	destName, err := output.PackageName(dest, outputFile)
 	if err != nil {
 		return nil, []diag.Diag{diag.Errorf(token.Position{Filename: dest}, "%v", err)}
 	}
