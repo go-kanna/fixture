@@ -1,5 +1,5 @@
-github.com/brianvoe/gofakeit/v7 v7.18.0 h1:vn3tb6OKRUazCkzhotd8xEwz/mhkLFbDoR8OUREFm80=
-github.com/brianvoe/gofakeit/v7 v7.18.0/go.mod h1:QXuPeBw164PJCzCUZVmgpgHJ3Llj49jSLVkKPMtxtxA=
+github.com/brianvoe/gofakeit/v7 v7.18.1 h1:gDjmUVe4q/xNvIGhH1Y1l+f1HLOpVUQTg4+2sFOECF4=
+github.com/brianvoe/gofakeit/v7 v7.18.1/go.mod h1:QXuPeBw164PJCzCUZVmgpgHJ3Llj49jSLVkKPMtxtxA=
 github.com/go-kanna/fixture v0.0.19 h1:q4S5tuOrd09ZIKiflppx4t02uxcOP/TLdEiY3W9hXwM=
 github.com/go-kanna/fixture v0.0.19/go.mod h1:33J2ZoFUqm1mQnLZsvC+ymW7VXimyr6z4UCCez2R6PA=
 github.com/go-kanna/internal v0.0.25 h1:YhtXo1ixyAt3cvveGzT+GDcc+1DvH7qb6nwXsqxRqp0=
