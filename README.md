@@ -187,12 +187,12 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 | `gt`, `gte`, `lt`, `lte`, `min`, `max` on integers | n, counted from the lower bound, or from 1, and wrapping within the upper: `gt=0` → 1, 2, 3, …            |
 | `gt`, `gte`, `lt`, `lte`, `min`, `max` on floats   | the lowest value they allow, or the highest without a lower bound: `gt=0` → `1`                           |
 | `eq`                                               | that value                                                                                                |
-| `ne`                                               | another value: the next choice of a `oneof`, or where it rules out part of a range, the lowest value left |
+| `ne`                                               | another value: the next choice of a `oneof`, an integer counted past it, `skipping(1+(n-1)%9, 2)` for `gte=1,lte=10,ne=2`, or the lowest float left |
 | `oneof=a b c`                                      | the first: `"admin"`                                                                                      |
 | `eqfield=Field`                                    | the other field's value                                                                                   |
 | `email`, `url`, `uuid`                             | that format, numbered within `min` and `max`: `em-0001@example.com` for `len=19`                          |
 | `pattern=regexp`, which only kanna-validate has    | a string gofakeit generates from the expression                                                           |
-| `rule=Type`, which only kanna-validate has         | the first constant of an enum, or what a field named after a value type would hold; a type with a `Validate` of its own is warned about |
+| `rule=Type`, which only kanna-validate has         | the first constant of an enum, or what a field named after a value type would hold                       |
 | `dive`                                             | the rules after it, for each element made                                                                 |
 
 `Type` of `rule=Type` is read as kanna-validate reads it: a bare name is a type of the struct's package, and `pkg.Type`
@@ -203,9 +203,10 @@ The rules are read to be satisfied, not checked. A rule kanna-fixture does not k
 alternatives such as `uuid4|uuid`, the one it knows is filled. `omitempty`, `omitnil`, and `omitzero` need nothing, as
 they only let more values pass. A map is filled empty, so a length it is to have is warned about the same way. A pattern
 is the one rule a number cannot meet, and gofakeit cannot generate every expression; when what it makes does not match,
-or does not fit within `min`, `max`, or `len`, generation warns and asks for a `fake` tag. So it does for a format that
-cannot fit within them: a UUID is 36 characters long, and an address or a URL needs room for its number beside
-`@example.com` or `https://example.com/`.
+or does not fit within `min`, `max`, or `len`, generation warns and asks for a `fake` tag. So it does for a format a
+rule asks for, `email`, `url`, or `uuid`, that cannot fit within them: a UUID is 36 characters long, and an address or
+a URL needs room for its number beside `@example.com` or `https://example.com/`. A format the name of the field alone
+asks for gives way to them, and the field is numbered without it.
 
 ## The fake tag
 

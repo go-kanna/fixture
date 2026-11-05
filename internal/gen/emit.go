@@ -59,24 +59,28 @@ func emit(
 	// gofile hands out the rest of the top-level names before any import or
 	// local, from a scope of their own.
 	top := f.Scope()
-	fl.generate, fl.orPanic = top.Name("mustGenerate"), top.Name("orPanic")
+	fl.generate, fl.orPanic, fl.skipping = top.Name("mustGenerate"), top.Name("orPanic"), top.Name("skipping")
 	counters := make([]string, len(generated))
 	for i, s := range generated {
 		counters[i] = top.Name("seq" + s.Name)
 	}
 
-	var generates, usesOrPanic bool
+	var generates, usesOrPanic, skips bool
 	for i, s := range generated {
 		filled, ds := fl.fixture(f, s, counters[i])
 		diags = append(diags, ds...)
 		generates = generates || filled.generates
 		usesOrPanic = usesOrPanic || filled.usesOrPanic
+		skips = skips || filled.skips
 	}
 	if generates {
 		writeGenerate(f, fl.generate)
 	}
 	if usesOrPanic {
 		writeOrPanic(f, fl.orPanic, destName)
+	}
+	if skips {
+		writeSkipping(f, fl.skipping)
 	}
 	return f, diags
 }
@@ -129,6 +133,26 @@ func seed(s scan.Struct) uint64 {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(s.PkgPath + "." + s.Name)) // a hash takes every write
 	return h.Sum64()
+}
+
+// writeSkipping writes the helper named name, which moves a number counted
+// among the values a range allows past each value ne leaves out of it, given
+// in ascending order:
+//
+//	func skipping(x int64, excluded ...int64) int64 {
+//		for _, e := range excluded {
+//			if x >= e {
+//				x++
+//			}
+//		}
+//		return x
+//	}
+func writeSkipping(f *gofile.File, name string) {
+	scope := f.Scope()
+	x, excluded, e := scope.Name("x"), scope.Name("excluded"), scope.Name("e")
+	fmt.Fprintf(f, "func %s(%s int64, %s ...int64) int64 {\n", name, x, excluded)
+	fmt.Fprintf(f, "for _, %s := range %s {\nif %s >= %[1]s {\n%[3]s++\n}\n}\n", e, excluded, x)
+	fmt.Fprintf(f, "return %s\n}\n", x)
 }
 
 // writeOrPanic writes the helper named name, which keeps what the constructor

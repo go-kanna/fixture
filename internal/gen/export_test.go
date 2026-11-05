@@ -65,6 +65,9 @@ func Wants(tag string, t types.Type) []string {
 				parts = append(parts, n.name+"="+n.v.String())
 			}
 		}
+		for _, v := range w.skip {
+			parts = append(parts, "skip="+strconv.FormatInt(v, 10))
+		}
 		if w.field != "" {
 			parts = append(parts, "eqfield="+w.field)
 		}
@@ -119,6 +122,7 @@ func Fill(fset *token.FileSet, pkgs []*packages.Package) (map[string][]string, [
 		targets:  map[*types.TypeName]bool{},
 		generate: "mustGenerate",
 		orPanic:  "orPanic",
+		skipping: "skipping",
 		n:        "n",
 		f:        "f",
 	}
@@ -167,6 +171,7 @@ func FillField(name string, t types.Type, tag string) string {
 		fset:     token.NewFileSet(),
 		generate: "mustGenerate",
 		orPanic:  "orPanic",
+		skipping: "skipping",
 		n:        "n",
 		f:        "f",
 	}

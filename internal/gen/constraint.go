@@ -34,10 +34,12 @@ type want struct {
 	choices []string
 
 	// low and high bound an integer, both inclusive, and are nil where the rules
-	// set no bound; a fixture counts up from low, or from 1. exact is the one
-	// number to fill instead: the one eq or oneof gives, the bound of a float, or
-	// one that ne leaves when it cuts into the range.
+	// set no bound; a fixture counts up from low, or from 1, past the values of
+	// skip, in ascending order, that ne leaves out of the range. exact is the
+	// one number to fill instead: the one eq or oneof gives, the bound of a
+	// float, or the one value ne leaves in the range.
 	low, high, exact constant.Value
+	skip             []int64
 
 	field   string // eqfield: the field whose value it copies
 	format  string // email, url, or uuid
@@ -514,10 +516,49 @@ func (r *reader) integer(b *types.Basic) {
 		start = one
 	}
 	if r.cut(start, high) {
-		r.w.exact = r.lowest(start, high)
-		return
+		skip, ok := r.within(start, high)
+		if !ok || r.leavesOne(start, high, skip) {
+			r.w.exact = r.lowest(start, high)
+			return
+		}
+		r.w.skip = skip
 	}
 	r.w.low, r.w.high = low, high
+}
+
+// within returns, in ascending order and once each, the values of ne from
+// start up to high, or up without end when high is nil, and false when the
+// range is beyond what the int64 number of a fixture counts in.
+func (r *reader) within(start, high constant.Value) ([]int64, bool) {
+	if _, exact := constant.Int64Val(start); !exact {
+		return nil, false
+	}
+	if high != nil {
+		if _, exact := constant.Int64Val(high); !exact {
+			return nil, false
+		}
+	}
+	var skip []int64
+	for _, v := range r.not {
+		if constant.Compare(v, token.LSS, start) || high != nil && constant.Compare(v, token.GTR, high) {
+			continue
+		}
+		if i, exact := constant.Int64Val(constant.ToInt(v)); exact && constant.Compare(constant.MakeInt64(i), token.EQL, v) {
+			skip = append(skip, i)
+		}
+	}
+	slices.Sort(skip)
+	return slices.Compact(skip), true
+}
+
+// leavesOne reports whether skip leaves at most one value from start to high,
+// which is then the one to fill.
+func (r *reader) leavesOne(start, high constant.Value, skip []int64) bool {
+	if high == nil {
+		return false
+	}
+	left := constant.BinaryOp(constant.BinaryOp(high, token.SUB, start), token.ADD, constant.MakeInt64(int64(1-len(skip))))
+	return constant.Compare(left, token.LEQ, constant.MakeInt64(1))
 }
 
 // choice returns the first value eq or oneof gives that a number of type b
