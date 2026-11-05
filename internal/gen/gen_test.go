@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-kanna/internal/cli"
 	"github.com/go-kanna/internal/packages"
+	"golang.org/x/mod/modfile"
 
 	"github.com/go-kanna/fixture/internal/gen"
 )
@@ -26,8 +27,8 @@ func TestMain(m *testing.M) {
 
 // writeModule writes files into a fresh module, example.com/app unless files
 // hold a go.mod of their own, and returns its directory. The module requires
-// gofakeit, which the generated code calls, and borrows the go.sum of this
-// checkout so that nothing is fetched.
+// gofakeit, which the generated code calls, at the version this checkout
+// requires, and borrows the go.sum of this checkout so that nothing is fetched.
 func writeModule(t *testing.T, files map[string]string) string {
 	t.Helper()
 
@@ -38,7 +39,7 @@ func writeModule(t *testing.T, files map[string]string) string {
 
 	dir := t.TempDir()
 	if _, ok := files["go.mod"]; !ok {
-		files["go.mod"] = "module example.com/app\n\ngo 1.26.0\n\nrequire github.com/brianvoe/gofakeit/v7 v7.18.0\n"
+		files["go.mod"] = "module example.com/app\n\ngo 1.26.0\n\nrequire " + gofakeitPath + " " + gofakeitVersion(t) + "\n"
 	}
 	files["go.sum"] = string(sum)
 	for name, content := range files {
@@ -49,6 +50,30 @@ func writeModule(t *testing.T, files map[string]string) string {
 		writeFile(t, path, content)
 	}
 	return dir
+}
+
+const gofakeitPath = "github.com/brianvoe/gofakeit/v7"
+
+// gofakeitVersion returns the version of gofakeit the go.mod of this checkout
+// requires.
+func gofakeitVersion(t *testing.T) string {
+	t.Helper()
+
+	data, err := os.ReadFile(filepath.Join("..", "..", "go.mod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := modfile.ParseLax("go.mod", data, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range f.Require {
+		if r.Mod.Path == gofakeitPath {
+			return r.Mod.Version
+		}
+	}
+	t.Fatal("go.mod does not require " + gofakeitPath)
+	return ""
 }
 
 // run runs kanna-fixture in dir and returns its exit code, stdout, and stderr.
