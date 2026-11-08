@@ -161,7 +161,7 @@ erase the difference between a user who has one and a user who does not. `requir
 
 A field's `validate` tag is read so that its value passes it. The tag is the one
 [go-playground/validator](https://github.com/go-playground/validator) and
-[kanna-validate](https://github.com/go-kanna/validate) both read; kanna-fixture depends on neither, and fills the
+[kanna-validator](https://github.com/go-kanna/validator) both read; kanna-fixture depends on neither, and fills the
 fields the same whichever of them checks the struct, if any does. A fixture is valid as made, so a test of one rule
 changes one field:
 
@@ -191,11 +191,11 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 | `oneof=a b c`                                      | the first: `"admin"`                                                                                      |
 | `eqfield=Field`                                    | the other field's value                                                                                   |
 | `email`, `url`, `uuid`                             | that format, numbered within `min` and `max`: `em-0001@example.com` for `len=19`                          |
-| `pattern=regexp`, which only kanna-validate has    | a string gofakeit generates from the expression                                                           |
-| `rule=Type`, which only kanna-validate has         | the first constant of an enum, or what a field named after a value type would hold                       |
+| `pattern=regexp`, which only kanna-validator has   | a string gofakeit generates from the expression                                                           |
+| `rule=Type`, which only kanna-validator has        | the first constant of an enum, or what a field named after a value type would hold                       |
 | `dive`                                             | the rules after it, for each element made                                                                 |
 
-`Type` of `rule=Type` is read as kanna-validate reads it: a bare name is a type of the struct's package, and `pkg.Type`
+`Type` of `rule=Type` is read as kanna-validator reads it: a bare name is a type of the struct's package, and `pkg.Type`
 one of the package the struct's file imports as `pkg`, as `_` if nothing else uses it.
 
 The rules are read to be satisfied, not checked. A rule kanna-fixture does not know, such as go-playground's
@@ -365,7 +365,7 @@ generated-code header is never touched.
 ## Example
 
 [`example`](example) generates fixtures for a small blog model and a sign-up request — numbered values, constants,
-templates, and a pattern — checks with kanna-validate that the sign-up fixture is valid as made, and prints a few. CI
+templates, and a pattern — checks with kanna-validator that the sign-up fixture is valid as made, and prints a few. CI
 regenerates it and fails if the output would change.
 
 ## Development

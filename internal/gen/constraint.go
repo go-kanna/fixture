@@ -44,7 +44,7 @@ type want struct {
 	field   string // eqfield: the field whose value it copies
 	format  string // email, url, or uuid
 	pattern string
-	rule    string // rule=, of kanna-validate: the type whose rule it holds the value to, as written
+	rule    string // rule=, of kanna-validator: the type whose rule it holds the value to, as written
 
 	// unknown are the rules kanna-fixture does not know, as written, which the
 	// value it fills may break.
@@ -68,11 +68,11 @@ func (w want) elements() int {
 // the field, then of the elements after each dive. It returns nil for a field
 // without one.
 //
-// The tag is read as go-playground/validator and kanna-validate read it, and as
-// leniently as possible. A rule kanna-fixture does not know is kept in unknown,
-// for a warning, and one it cannot make sense of, such as max=abc, is passed
-// over: that is the validator's to report. Of alternatives such as email|url,
-// the first it knows is taken, which satisfies them all.
+// The tag is read as go-playground/validator and kanna-validator read it, and
+// as leniently as possible. A rule kanna-fixture does not know is kept in
+// unknown, for a warning, and one it cannot make sense of, such as max=abc, is
+// passed over: that is the validator's to report. Of alternatives such as
+// email|url, the first it knows is taken, which satisfies them all.
 func wantsOf(tag reflect.StructTag, t types.Type) []want {
 	s, ok := tag.Lookup(tagKey)
 	if !ok {
@@ -113,8 +113,8 @@ func wantsOf(tag reflect.StructTag, t types.Type) []want {
 }
 
 // items splits a validate tag into its rules. They are separated by commas,
-// except that pattern, which only kanna-validate has, takes the rest of the tag
-// as its expression, commas and all.
+// except that pattern, which only kanna-validator has, takes the rest of the
+// tag as its expression, commas and all.
 func items(s string) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		for rest := s; rest != ""; {
@@ -704,7 +704,7 @@ func floor(v constant.Value, open bool) constant.Value {
 }
 
 // fits reports whether a value of type b can hold v. int, uint, and uintptr
-// are taken to be 64 bits wide, as kanna-validate takes them.
+// are taken to be 64 bits wide, as kanna-validator takes them.
 func fits(v constant.Value, b *types.Basic) bool {
 	if b.Info()&types.IsFloat != 0 {
 		f, _ := constant.Float64Val(constant.ToFloat(v))

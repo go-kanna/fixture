@@ -273,9 +273,9 @@ func (fl *filler) ruled(s scan.Struct, t types.Type, w want) (expr, bool) {
 	return expr{}, false
 }
 
-// ruleType returns the type ref names, as rule=ref of kanna-validate on a field
-// of s does: a type of the package of s, or pkg.Type of the package the file of
-// s imports as pkg.
+// ruleType returns the type ref names, as rule=ref of kanna-validator on a
+// field of s does: a type of the package of s, or pkg.Type of the package the
+// file of s imports as pkg.
 func ruleType(s scan.Struct, ref string) (*types.Named, error) {
 	own := s.Named.Obj().Pkg()
 	pkg, name := own, ref
@@ -300,7 +300,7 @@ func ruleType(s scan.Struct, ref string) (*types.Named, error) {
 // unkeptRules warns about each rule= of wants, the rules of field of s, that the
 // fixture cannot keep: one naming no type it can read, or a type that is
 // neither an enum with a constant to take nor a value type of kanna-value,
-// which kanna-validate refuses too.
+// which kanna-validator refuses too.
 func (fl *filler) unkeptRules(s scan.Struct, field scan.Field, wants []want) []diag.Diag {
 	var diags []diag.Diag
 	for _, w := range wants {

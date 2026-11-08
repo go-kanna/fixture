@@ -340,7 +340,7 @@ type Item struct {
 	}
 }
 
-// rule= of kanna-validate holds a field to the rule of a type, named as the
+// rule= of kanna-validator holds a field to the rule of a type, named as the
 // struct's file imports it: an enum gives its first constant, and a value type
 // what a field named after it would hold. A type whose rule the fixture cannot
 // tell is warned about.

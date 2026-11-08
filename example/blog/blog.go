@@ -9,7 +9,7 @@ import (
 )
 
 //go:generate go tool kanna-fixture
-//go:generate go tool kanna-validate
+//go:generate go tool kanna-validator
 
 // Status is a named string with constants beside it, the first of which that
 // is not the zero value a fixture takes.
@@ -44,7 +44,7 @@ type Article struct {
 	DeletedAt   time.Time `fake:"skip"` // set, it would say the article is gone
 }
 
-// SignUp is a request kanna-validate checks. Its fixture passes as made.
+// SignUp is a request kanna-validator checks. Its fixture passes as made.
 //
 //kanna:validate
 type SignUp struct {
