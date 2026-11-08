@@ -13,9 +13,9 @@ on:
 permissions:
   contents: read
 
-# go.work asks for Go 1.27, which only the example needs: it runs kanna-validate,
-# which reads JSON with encoding/json/v2. The module itself is tested and built
-# without it, on the Go its go.mod names.
+# go.work asks for Go 1.27, which only the example needs: it runs
+# kanna-validator, which reads JSON with encoding/json/v2. The module itself is
+# tested and built without it, on the Go its go.mod names.
 
 jobs:
   lint:

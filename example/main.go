@@ -1,6 +1,6 @@
 // Command example builds values from the fixtures kanna-fixture generated for
-// package blog, which are plain Go to call, and checks with kanna-validate that
-// a request made by one is valid as it stands.
+// package blog, which are plain Go to call, and checks with kanna-validator
+// that a request made by one is valid as it stands.
 //
 // Regenerate with:
 //

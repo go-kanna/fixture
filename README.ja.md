@@ -147,7 +147,7 @@ u := fixture.User(member, func(u *model.User) { u.Age = 70 })
 
 ## ルール
 
-フィールドの `validate` タグは、値がそれを満たすように読み取られます。このタグは [go-playground/validator](https://github.com/go-playground/validator) と [kanna-validate](https://github.com/go-kanna/validate) の両方が読むものです。kanna-fixture はどちらにも依存せず、どちらが構造体をチェックしても、どちらもチェックしなくても、同じようにフィールドを埋めます。フィクスチャは作られた時点で有効なので、1 つのルールのテストでは 1 つのフィールドを変更するだけで済みます:
+フィールドの `validate` タグは、値がそれを満たすように読み取られます。このタグは [go-playground/validator](https://github.com/go-playground/validator) と [kanna-validator](https://github.com/go-kanna/validator) の両方が読むものです。kanna-fixture はどちらにも依存せず、どちらが構造体をチェックしても、どちらもチェックしなくても、同じようにフィールドを埋めます。フィクスチャは作られた時点で有効なので、1 つのルールのテストでは 1 つのフィールドを変更するだけで済みます:
 
 ```go
 type SignUp struct {
@@ -175,11 +175,11 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 | `oneof=a b c` | 先頭の値: `"admin"` |
 | `eqfield=Field` | 指定したフィールドの値 |
 | `email`、`url`、`uuid` | その形式の値。`min` と `max` の範囲内で番号を付ける: `len=19` なら `em-0001@example.com` |
-| `pattern=regexp`（kanna-validate にのみある） | gofakeit が正規表現から生成する文字列 |
-| `rule=Type`（kanna-validate にのみある） | enum なら最初の定数、値オブジェクトならその型の名前のフィールドが保持するはずの値 |
+| `pattern=regexp`（kanna-validator にのみある） | gofakeit が正規表現から生成する文字列 |
+| `rule=Type`（kanna-validator にのみある） | enum なら最初の定数、値オブジェクトならその型の名前のフィールドが保持するはずの値 |
 | `dive` | `dive` より後のルールを、作られた各要素に適用 |
 
-`rule=Type` の `Type` は、kanna-validate と同じように読みます。修飾なしの名前は構造体のパッケージの型、`pkg.Type` は構造体のファイルが `pkg` として import している（ほかで使わなければ `_` で）パッケージの型です。
+`rule=Type` の `Type` は、kanna-validator と同じように読みます。修飾なしの名前は構造体のパッケージの型、`pkg.Type` は構造体のファイルが `pkg` として import している（ほかで使わなければ `_` で）パッケージの型です。
 
 ルールは満たすために読み取るもので、チェックするためのものではありません。go-playground の `alphanum` のような kanna-fixture が知らないルールは、入れた値が満たさないことがあるので、生成時にそのフィールドで警告し、`fake` タグを求めます。`uuid4|uuid` のような選択肢では、知っているほうを満たします。`omitempty`、`omitnil`、`omitzero` は通る値を増やすだけなので、何もしません。map は空で埋めるので、map の長さのルールも同じように警告します。パターンは番号では満たせない唯一のルールで、gofakeit はすべての正規表現から値を生成できるわけではありません。生成した値が正規表現にマッチしない場合や、`min`、`max`、`len` の範囲に収まらない場合は、生成時に警告を出し、`fake` タグを求めます。ルールが求める形式（`email`、`url`、`uuid`）がこれらの範囲に収まらない場合も同じです。UUID の長さは 36 文字で、アドレスや URL には `@example.com` や `https://example.com/` のほかに番号を入れる余地が必要です。フィールドの名前だけが求める形式は範囲に譲り、その形式なしの番号で埋めます。
 
@@ -302,7 +302,7 @@ kanna-fixture [flags] [package]
 
 ## サンプル
 
-[`example`](example) は、小さなブログのモデルとサインアップのリクエストのフィクスチャを生成し（番号付きの値、定数、テンプレート、パターン）、サインアップのフィクスチャが作られた時点で有効であることを kanna-validate でチェックして、いくつかを表示します。CI はこれを再生成し、出力が変わる場合は失敗します。
+[`example`](example) は、小さなブログのモデルとサインアップのリクエストのフィクスチャを生成し（番号付きの値、定数、テンプレート、パターン）、サインアップのフィクスチャが作られた時点で有効であることを kanna-validator でチェックして、いくつかを表示します。CI はこれを再生成し、出力が変わる場合は失敗します。
 
 ## 開発
 
