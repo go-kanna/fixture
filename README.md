@@ -8,7 +8,7 @@
 [![日本語](https://img.shields.io/badge/lang-%E6%97%A5%E6%9C%AC%E8%AA%9E-blue.svg)](README.ja.md)
 
 kanna-fixture writes a constructor for every struct of a package, with every field already filled, so a test states
-only what it cares about. Fields are numbered — `slug-1`, `email-1@example.com` — so no two fixtures collide, and
+only what it cares about. Fields are numbered (`slug-1`, `email-1@example.com`), so no two fixtures collide, and
 filled to pass the rules their `validate` tags declare; a field tagged `fake` takes a gofakeit template instead.
 
 Part of the [kanna](https://go-kanna.github.io/) family of code generators. Requires Go 1.26.
@@ -147,7 +147,7 @@ cannot set them from their own package, and so are fields of a type they cannot 
 a struct type written out with an unexported field.
 
 What the number feeds is unique per type, and names its field: `title-3` in a failure is the Title of the third Article
-made. What it does not feed — constants, the first of a `oneof`, bools — is the same whichever tests ran first, so a
+made. What it does not feed (constants, the first of a `oneof`, bools) is the same whichever tests ran first, so a
 test behaves the same alone, in the whole run, and in parallel. The values built from n do move with the number of
 fixtures made before; a test that asserts on one sets it.
 
@@ -221,8 +221,8 @@ reads, for a field that wants a realistic value or a format the rules do not des
 | `fake:"123-4567"`                 | that value, fixed                                                       |
 | `fake:"skip"` or `fake:"-"`       | the zero value                                                          |
 
-A string field takes any template. A numeric field takes the numeric ones — `{number}`, `{intrange}`, `{uintrange}`,
-`{float32range}`, `{float64range}`, and `{price}` — with a range that fits it; a `time.Time` takes `{date}`, and a UUID
+A string field takes any template. A numeric field takes the numeric ones (`{number}`, `{intrange}`, `{uintrange}`,
+`{float32range}`, `{float64range}`, and `{price}`) with a range that fits it; a `time.Time` takes `{date}`, and a UUID
 `{uuid}`. A number or a bool also takes a value as it stands, such as `fake:"42"`, and a named type converts what its
 kind takes. A pointer is set to point to the value, though it would otherwise stay nil. The rules of the field's
 `validate` tag are not applied: the template is the value asked for. Where what it makes is known before it runs, a
@@ -290,20 +290,10 @@ func User(setters ...func(*model.User)) model.User {
 | a struct, but a value type   | `func T() model.T`, or `func T(setters ...func(*model.T)) model.T`, as a generated fixture is      |
 | any other named type         | `func T() model.T`, or `func T(f *gofakeit.Faker) model.T` for the faker of the fixture calling it |
 
-The constants of a type other than an enum of string, such as `time.Duration` or an enum of int, are no choices a
-fixture picks from: it converts a number, `model.Status(n)`. Write the fixture of the type for a value of your choosing:
-
-```go
-// fixture/status.go
-func Status() model.Status {
-	return model.StatusActive
-}
-```
-
-Such a struct gets no generated fixture, and the others call this one instead, whether or not it is marked
-`//kanna:fixture skip`. Its faker is seeded as for a field tagged `fake`, with the number and the type of the fixture
-calling it, so the third User made gets the same nickname on every run. A value the function makes is not unique; count
-one of your own where it has to be:
+A struct with a fixture written by hand gets no generated fixture, and the others call this one instead, whether or not
+it is marked `//kanna:fixture skip`. Its faker is seeded as for a field tagged `fake`, with the number and the type of
+the fixture calling it, so the third User made gets the same nickname on every run. A value the function makes is not
+unique; count one of your own where it has to be:
 
 ```go
 var seqEmail atomic.Int64
@@ -314,8 +304,18 @@ func Email() model.Email {
 ```
 
 Another declaration of the name a generated fixture takes stops generation, saying how to declare it to be the
-fixture. A fixture written by hand calls what it calls, which is for its author to keep from coming back to the fixture
+fixture. What a fixture written by hand calls is up to its author, who has to keep it from coming back to the fixture
 that calls it.
+
+The constants of a type other than an enum of string, such as `time.Duration` or an enum of int, are no choices a
+fixture picks from: it converts a number, `model.Status(n)`. Write the fixture of the type for a value of your choosing:
+
+```go
+// fixture/status.go
+func Status() model.Status {
+	return model.StatusActive
+}
+```
 
 Skipped with a warning: a generic struct, for which a fixture has no type arguments to pick, and a struct that must not
 be copied, such as one holding a `sync.Mutex`, since a fixture returns a value. A protobuf message is one of these, as
@@ -364,8 +364,8 @@ generated-code header is never touched.
 
 ## Example
 
-[`example`](example) generates fixtures for a small blog model and a sign-up request — numbered values, constants,
-templates, and a pattern — checks with kanna-validator that the sign-up fixture is valid as made, and prints a few. CI
+[`example`](example) generates fixtures for a small blog model and a sign-up request (numbered values, constants,
+templates, and a pattern), checks with kanna-validator that the sign-up fixture is valid as made, and prints a few. CI
 regenerates it and fails if the output would change.
 
 ## Development
