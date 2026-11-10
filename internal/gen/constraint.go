@@ -244,13 +244,13 @@ func newReader(t types.Type) *reader {
 // knows reports whether kanna-fixture fills a value to pass the rule name, or
 // needs nothing for it, as for omitempty, which only lets more values pass.
 func knows(name string) bool {
-	switch name {
-	case "required", "email", "url", "uuid", "pattern", "eqfield", "oneof", "rule",
-		"min", "max", "len", "eq", "ne", "gt", "gte", "lt", "lte",
-		"omitempty", "omitnil", "omitzero":
-		return true
-	}
-	return false
+	return slices.Contains(knownRules, name)
+}
+
+var knownRules = []string{
+	"required", "email", "url", "uuid", "pattern", "eqfield", "oneof", "rule",
+	"min", "max", "len", "eq", "ne", "gt", "gte", "lt", "lte",
+	"omitempty", "omitnil", "omitzero",
 }
 
 // add takes in one rule.

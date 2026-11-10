@@ -20,6 +20,7 @@ import (
 	"github.com/go-kanna/internal/enumtype"
 	"github.com/go-kanna/internal/qualifier"
 	"github.com/go-kanna/internal/scan"
+	"github.com/go-kanna/internal/suggest"
 	"github.com/go-kanna/internal/valuetype"
 )
 
@@ -112,8 +113,13 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 		fv, faked, err := fakeOf(field.Tag, field.Type)
 		if err != nil {
 			d := diag.Errorf(field.Pos, "%s (field %s)", err, field.Name)
-			if te, ok := errors.AsType[*tagError](err); ok && te.hint != "" {
-				d = d.WithHints(te.hint)
+			if te, ok := errors.AsType[*tagError](err); ok {
+				if te.hint != "" {
+					d = d.WithHints(te.hint)
+				}
+				if te.byHand {
+					d = d.WithHints(fl.fakeless(deref(field.Type))...)
+				}
 			}
 			diags = append(diags, d)
 			continue
@@ -227,7 +233,15 @@ func unkept(field scan.Field, wants []want) []diag.Diag {
 			t, _ = elemOf(t)
 		}
 		for _, rule := range w.unknown {
-			warn(fmt.Sprintf("kanna-fixture does not know %s, so the value it fills may break it", rule))
+			msg := fmt.Sprintf("kanna-fixture does not know %s, so the value it fills may break it", rule)
+			name, _, _ := strings.Cut(rule, "=")
+			if known, ok := suggest.Closest(name, knownRules); ok {
+				diags = append(diags, diag.Warningf(field.Pos, "%s (field %s)", msg, field.Name).WithHints(
+					fmt.Sprintf("did you mean %q?", known),
+					"give the field a fake tag if it is a rule of the validator"))
+				continue
+			}
+			warn(msg)
 		}
 		if w.unheld {
 			warn(fmt.Sprintf("no %s keeps within the bounds the rules set", types.TypeString(deref(t).Underlying(), nil)))
@@ -632,13 +646,41 @@ func (fl *filler) leftZero(field scan.Field, t types.Type) diag.Diag {
 	d := diag.Warningf(field.Pos, "kanna-fixture cannot fill %s, and the zero value it leaves breaks the rules (field %s)",
 		typ, field.Name)
 	var hints []string
-	if n, ok := types.Unalias(t).(*types.Named); ok && nameable(n) {
-		name := n.Obj().Name()
-		hints = append(hints, fmt.Sprintf("write the fixture of %s by hand, func %s() %s in package %s, which the "+
-			"fixtures then call", name, name, typ, fl.dest))
+	if hint, ok := fl.byHand(t, false); ok {
+		hints = append(hints, hint+", which the fixtures then call")
 	}
 	hints = append(hints, `tag the field fake:"skip" to leave it zero without a warning, and set it where it matters`)
 	return d.WithHints(hints...)
+}
+
+// fakeless says how to fill a field of type t, which no fake tag fills: by the
+// fixture of t, generated or written by hand.
+func (fl *filler) fakeless(t types.Type) []string {
+	if n, ok := types.Unalias(t).(*types.Named); ok && fl.targets[n.Obj()] {
+		return []string{fmt.Sprintf("drop the fake tag: the fixture of %s fills the field", n.Obj().Name())}
+	}
+	if hint, ok := fl.byHand(t, true); ok {
+		return []string{hint + ", and drop the fake tag"}
+	}
+	return nil
+}
+
+// byHand says how to write the fixture of t by hand, for a type the fixtures
+// can name. With faker set, it takes the faker, unless t is a struct other than
+// a value type of kanna-value, whose fixture cannot.
+func (fl *filler) byHand(t types.Type, faker bool) (string, bool) {
+	n, ok := types.Unalias(t).(*types.Named)
+	if !ok || !nameable(n) {
+		return "", false
+	}
+	name, typ := n.Obj().Name(), types.TypeString(t, qualifierFor(nil))
+	params := ""
+	_, isStruct := n.Underlying().(*types.Struct)
+	if _, isValue := valuetype.Of(n); faker && (!isStruct || isValue) {
+		params = "f *gofakeit.Faker"
+	}
+	return fmt.Sprintf("write the fixture of %s by hand, func %s(%s) %s in package %s",
+		name, name, params, typ, fl.dest), true
 }
 
 // rest returns the rules of the level after a dive.

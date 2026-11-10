@@ -407,6 +407,7 @@ type Item struct {
 	Codes  []string          `+"`"+`validate:"min=1,dive,numeric"`+"`"+`
 	Faked  string            `+"`"+`fake:"abc" validate:"alphanum"`+"`"+`
 	Plain  string            `+"`"+`validate:"omitempty,omitnil,omitzero,max=10,"`+"`"+`
+	Typo   string            `+"`"+`validate:"requird"`+"`"+`
 }
 `)
 
@@ -417,6 +418,7 @@ type Item struct {
 		`Codes: []string{fmt.Sprintf("codes-%d", n)}`,
 		`Faked: "abc"`,
 		`Plain: fmt.Sprintf("plain-%d", n%10000)`,
+		`Typo: fmt.Sprintf("typo-%d", n)`,
 		"uses n",
 	})
 	want := []string{
@@ -428,6 +430,9 @@ type Item struct {
 			"give the field a fake tag (field Labels)",
 		"test.go:8:2: warning: kanna-fixture does not know numeric, so the value it fills may break it; " +
 			"give the field a fake tag (field Codes)",
+		"test.go:11:2: warning: kanna-fixture does not know requird, so the value it fills may break it (field Typo)\n" +
+			"  did you mean \"required\"?\n" +
+			"  give the field a fake tag if it is a rule of the validator",
 	}
 	if !slices.Equal(diags, want) {
 		t.Errorf("diagnostics =\n\t%s\nwant\n\t%s", strings.Join(diags, "\n\t"), strings.Join(want, "\n\t"))
@@ -569,6 +574,51 @@ type Person struct {
 	}
 	if !slices.Equal(diags, want) {
 		t.Errorf("diagnostics = %q, want %q", diags, want)
+	}
+}
+
+// A fake tag on a type no template fills says how to fill the field instead: by
+// the fixture of a struct that gets one, or by one written by hand, with the
+// faker for a value type, and without for another struct.
+func TestFill_FakeOnAType(t *testing.T) {
+	t.Parallel()
+
+	_, diags := fill(t, `package model
+
+//kanna:value
+type Email struct{ s string }
+
+func (e Email) String() string { return e.s }
+
+func NewEmail(s string) (Email, error) { return Email{s: s}, nil }
+
+type Inner struct{ A int }
+
+//kanna:fixture skip
+type Skipped struct{ A int }
+
+type Person struct {
+	Mail  Email   `+"`"+`fake:"{email}"`+"`"+`
+	PMail *Email  `+"`"+`fake:"{email}"`+"`"+`
+	In    Inner   `+"`"+`fake:"{number}"`+"`"+`
+	Skip  Skipped `+"`"+`fake:"{number}"`+"`"+`
+}
+`)
+
+	want := []string{
+		"test.go:16:2: error: fake tag \"{email}\" cannot fill model.Email (field Mail)\n" +
+			"  write the fixture of Email by hand, func Email(f *gofakeit.Faker) model.Email in package fixture, " +
+			"and drop the fake tag",
+		"test.go:17:2: error: fake tag \"{email}\" cannot fill model.Email (field PMail)\n" +
+			"  write the fixture of Email by hand, func Email(f *gofakeit.Faker) model.Email in package fixture, " +
+			"and drop the fake tag",
+		"test.go:18:2: error: fake tag \"{number}\" cannot fill model.Inner (field In)\n" +
+			"  drop the fake tag: the fixture of Inner fills the field",
+		"test.go:19:2: error: fake tag \"{number}\" cannot fill model.Skipped (field Skip)\n" +
+			"  write the fixture of Skipped by hand, func Skipped() model.Skipped in package fixture, and drop the fake tag",
+	}
+	if !slices.Equal(diags, want) {
+		t.Errorf("diagnostics =\n\t%s\nwant\n\t%s", strings.Join(diags, "\n\t"), strings.Join(want, "\n\t"))
 	}
 }
 
