@@ -400,6 +400,49 @@ func TestCommand_NoStruct(t *testing.T) {
 	}
 }
 
+// Two packages writing into one destination would overwrite each other's
+// fixtures, the run last to go keeping its own. The fixtures of a import b,
+// which b is told from.
+func TestCommand_SharedDestination(t *testing.T) {
+	t.Parallel()
+
+	dir := writeModule(t, map[string]string{
+		"a/a.go": "package a\n\nimport \"example.com/app/b\"\n\ntype User struct{ Level b.Level }\n",
+		"b/b.go": "package b\n\ntype Level int\n\ntype Order struct{ Total int }\n",
+	})
+	if code, _, stderr := run(t, filepath.Join(dir, "a"), "-destination", "../fx"); code != cli.ExitOK {
+		t.Fatalf("run in a = %d, stderr %q", code, stderr)
+	}
+	path := filepath.Join(dir, "fx", "fixture_gen.go")
+	before := readFile(t, path)
+
+	code, _, stderr := run(t, filepath.Join(dir, "b"), "-destination", "../fx")
+	want := "fx/fixture_gen.go:16:6: error: User is the fixture of a.User, of another package, " +
+		"which a run for example.com/app/b would overwrite\n" +
+		"  give each package a -destination of its own\n" +
+		"  remove the file if that package no longer generates here\n"
+	if code != cli.ExitFailure || !strings.Contains(stderr, want) {
+		t.Errorf("run in b = %d, stderr %q; want a failure with %q", code, stderr, want)
+	}
+	if got := readFile(t, path); got != before {
+		t.Errorf("fixture_gen.go was overwritten:\n%s", got)
+	}
+
+	// Nor does a run with nothing to write remove them.
+	writeFile(t, filepath.Join(dir, "b", "b.go"), "package b\n\ntype Level int\n")
+	if code, _, _ := run(t, filepath.Join(dir, "b"), "-destination", "../fx"); code != cli.ExitFailure {
+		t.Errorf("run in b without a struct = %d, want a failure", code)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("fixture_gen.go was removed: %v", err)
+	}
+
+	// A run for a keeps going.
+	if code, _, stderr := run(t, filepath.Join(dir, "a"), "-destination", "../fx", "-check"); code != cli.ExitOK {
+		t.Errorf("-check in a = %d, stderr %q", code, stderr)
+	}
+}
+
 // sqlc writes its models with the generated-code marker, which does not keep
 // them from getting fixtures.
 func TestCommand_GeneratedModels(t *testing.T) {

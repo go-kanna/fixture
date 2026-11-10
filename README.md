@@ -354,7 +354,7 @@ kanna-fixture [flags] [package]
 
 | Flag                 | Meaning                                                                                          |
 |----------------------|--------------------------------------------------------------------------------------------------|
-| `-destination <dir>` | write `fixture_gen.go` into dir (default `fixture`)                                              |
+| `-destination <dir>` | write `fixture_gen.go` into dir (default `fixture`), a dir of its own for each model package     |
 | `-exclude <names>`   | comma-separated names of structs to skip                                                         |
 | `-tags <list>`       | comma-separated build tags                                                                       |
 | `-check`             | verify the output is up to date instead of writing it, including that no output is left over; `KANNA_CHECK=1` does the same |
@@ -367,14 +367,15 @@ no argument and writes `fixture/` beside its files; `//go:generate go tool kanna
 module writes `fixture/` there. Paths are relative to the directory `go generate` runs in, the one holding the
 `//go:generate` line.
 
-The destination is a package other than the model, which its fixtures import. It may hold hand-written files too: their
-package is the one the generated file joins, which is named after the directory without them: write a `doc.go` there,
-`package fixtures`, for another name. A fixture whose name they already declare stops generation. They may call the
-fixtures before the first run has written them: kanna-fixture type-checks them once more with what it is about to write
-in place, and writes nothing while they do not compile with it, so a mistake a missing fixture hid is reported then, and
-a fixture they still call is not removed. Tests in other packages are not loaded, so `go vet` tells of a fixture they
-call that is gone. A run that succeeds prints nothing but its warnings. A file named `fixture_gen.go` without the
-generated-code header is never touched.
+The destination is a package other than the model, which its fixtures import, and holds the fixtures of that one package
+alone: a run stops at a `fixture_gen.go` there that holds those of another package, which it would overwrite. It may
+hold hand-written files too: their package is the one the generated file joins, which is named after the directory
+without them: write a `doc.go` there, `package fixtures`, for another name. A fixture whose name they already declare
+stops generation. They may call the fixtures before the first run has written them: kanna-fixture type-checks them once
+more with what it is about to write in place, and writes nothing while they do not compile with it, so a mistake a
+missing fixture hid is reported then, and a fixture they still call is not removed. Tests in other packages are not
+loaded, so `go vet` tells of a fixture they call that is gone. A run that succeeds prints nothing but its warnings. A
+file named `fixture_gen.go` without the generated-code header is never touched.
 
 ## Example
 
