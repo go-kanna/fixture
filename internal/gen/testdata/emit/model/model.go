@@ -109,6 +109,17 @@ type Tenure struct {
 	Since Since
 }
 
+// Term holds a field to the rule of Since, which no guess passes either.
+type Term struct {
+	Start time.Time `validate:"rule=Since"`
+}
+
+// Profile holds a field to the rule of Handle, whose fixture written by hand it
+// reads.
+type Profile struct {
+	Nick string `validate:"rule=Handle"`
+}
+
 // Owner has a fixture written by hand, which Shop's calls.
 type Owner struct {
 	Name string

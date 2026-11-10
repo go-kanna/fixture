@@ -91,6 +91,22 @@ func Hidden(setters ...func(*model.Hidden)) model.Hidden {
 	return x
 }
 
+var seqProfile atomic.Int64
+
+// Profile returns a new model.Profile with every field it can fill set, then
+// applies setters in order.
+func Profile(setters ...func(*model.Profile)) model.Profile {
+	n := seqProfile.Add(1)
+	f := gofakeit.NewFaker(rand.NewPCG(uint64(n), 0x36dfad7e645d1801), false)
+	x := model.Profile{
+		Nick: Handle(f).String(),
+	}
+	for _, set := range setters {
+		set(&x)
+	}
+	return x
+}
+
 // Shop returns a new model.Shop with every field it can fill set, then
 // applies setters in order.
 func Shop(setters ...func(*model.Shop)) model.Shop {
@@ -133,6 +149,21 @@ func Tenure(setters ...func(*model.Tenure)) model.Tenure {
 	n := seqTenure.Add(1)
 	x := model.Tenure{
 		Since: orPanic(model.NewSince(time.Date(2000, time.January, 1, 0, 0, int(n), 0, time.UTC))),
+	}
+	for _, set := range setters {
+		set(&x)
+	}
+	return x
+}
+
+var seqTerm atomic.Int64
+
+// Term returns a new model.Term with every field it can fill set, then
+// applies setters in order.
+func Term(setters ...func(*model.Term)) model.Term {
+	n := seqTerm.Add(1)
+	x := model.Term{
+		Start: orPanic(model.NewSince(time.Date(2000, time.January, 1, 0, 0, int(n), 0, time.UTC))).Time(),
 	}
 	for _, set := range setters {
 		set(&x)

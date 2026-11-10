@@ -192,7 +192,7 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 | `eqfield=Field`                                    | the other field's value                                                                                   |
 | `email`, `url`, `uuid`                             | that format, numbered within `min` and `max`: `em-0001@example.com` for `len=19`                          |
 | `pattern=regexp`, which only kanna-validator has   | a string gofakeit generates from the expression                                                           |
-| `rule=Type`, which only kanna-validator has        | the first constant of an enum, or what a field named after a value type would hold                       |
+| `rule=Type`, which only kanna-validator has        | the first constant of an enum, or what a field of a value type holds, read through its accessor          |
 | `dive`                                             | the rules after it, for each element made                                                                 |
 
 `Type` of `rule=Type` is read as kanna-validator reads it: a bare name is a type of the struct's package, and `pkg.Type`
@@ -272,7 +272,8 @@ A struct marked `//kanna:value` gets no fixture either, and says nothing: it is 
 constructor. A field of such a type is made with that constructor, of what a field named after the type would hold:
 `orPanic(model.NewEmail(fmt.Sprintf("email-%d@example.com", n)))` for an `Email`. A value the type's rule rejects makes
 the fixture panic, saying what to write instead: a fixture of the type written by hand, below. Only running tells, as the
-rule is the type's own code. Tag the field `fake:"skip"` to leave it zero instead.
+rule is the type's own code. Tag the field `fake:"skip"` to leave it zero instead. A field held to the type with
+`rule=Type` gets the same value, read through its accessor: `orPanic(model.NewEmail(…)).String()`.
 
 ### Fixtures written by hand
 
