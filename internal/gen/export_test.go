@@ -125,6 +125,7 @@ func Fill(fset *token.FileSet, pkgs []*packages.Package) (map[string][]string, [
 		skipping: "skipping",
 		n:        "n",
 		f:        "f",
+		dest:     "fixture",
 	}
 	for _, s := range found {
 		fl.targets[s.Named.Obj()] = true

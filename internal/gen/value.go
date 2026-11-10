@@ -43,6 +43,10 @@ type expr struct {
 	// for the helper keeping what a value type's constructor returns; skips, for
 	// the one counting past what ne leaves out.
 	usesN, usesF, generates, usesOrPanic, skips bool
+
+	// zero is the type of a value it leaves zero, though the rules reject
+	// that, or nil.
+	zero types.Type
 }
 
 // assignment sets field to value.
@@ -88,6 +92,9 @@ type filler struct {
 	// n and f are the names the fixture being worked out gives its number and
 	// its faker.
 	n, f string
+
+	// dest is the name of the package the fixtures go into.
+	dest string
 }
 
 // fill works out the value of each field of s, and says what is wrong with
@@ -136,6 +143,9 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 			diags = append(diags, fl.unkeptRules(s, field, wants)...)
 			diags = append(diags, fl.recurring(s, field, wants)...)
 			e, ok = fl.value(s, field.Type, wants, field.Name)
+			if e.zero != nil {
+				diags = append(diags, fl.leftZero(field, e.zero))
+			}
 		}
 		if !ok {
 			continue
@@ -494,7 +504,14 @@ func (fl *filler) value(s scan.Struct, t types.Type, wants []want, name string) 
 		if e, ok := fl.value(s, u.Elem(), wants, name); ok {
 			return fl.pointer(e, u.Elem()), true
 		}
-		return expr{text: "new(" + types.TypeString(u.Elem(), fl.imports.Qualifier) + ")", typ: t}, true
+		// required is for the pointer, which new satisfies.
+		pointee := slices.Clone(wants)
+		pointee[0].required = false
+		return expr{
+			text: "new(" + types.TypeString(u.Elem(), fl.imports.Qualifier) + ")",
+			typ:  t,
+			zero: fl.breaks(u.Elem(), pointee),
+		}, true
 	case *types.Slice:
 		k := w.elements()
 		if k == 0 && !w.required {
@@ -506,7 +523,7 @@ func (fl *filler) value(s scan.Struct, t types.Type, wants []want, name string) 
 		}
 		e, ok := fl.value(s, u.Elem(), rest(wants), name)
 		if !ok {
-			return expr{text: "make(" + typ + ", " + strconv.Itoa(k) + ")", typ: t}, true
+			return expr{text: "make(" + typ + ", " + strconv.Itoa(k) + ")", typ: t, zero: e.zero}, true
 		}
 		e = fl.convert(e, u.Elem())
 		e.text = typ + "{" + strings.Repeat(e.text+", ", k-1) + e.text + "}"
@@ -533,7 +550,7 @@ func (fl *filler) value(s scan.Struct, t types.Type, wants []want, name string) 
 	b, ok := t.Underlying().(*types.Basic)
 	switch {
 	case !ok:
-		return expr{}, false
+		return expr{zero: fl.breaks(t, wants)}, false
 	case b.Info()&types.IsString != 0:
 		return fl.str(t, w, name), true
 	case b.Info()&types.IsInteger != 0:
@@ -547,6 +564,35 @@ func (fl *filler) value(s scan.Struct, t types.Type, wants []want, name string) 
 		return expr{text: "true"}, true
 	}
 	return expr{}, false
+}
+
+// breaks returns t when its zero value breaks the rules of wants, as far as
+// rejectsZero tells, or nil. A struct that gets a fixture is left zero only
+// where its fixture would recur, which recurring warns about.
+func (fl *filler) breaks(t types.Type, wants []want) types.Type {
+	if n, ok := types.Unalias(t).(*types.Named); ok && fl.targets[n.Obj()] {
+		return nil
+	}
+	if rejectsZero(t, wants) {
+		return t
+	}
+	return nil
+}
+
+// leftZero warns about field, which the fixture leaves holding a zero value of
+// type t that its rules reject, and says how to fill it instead.
+func (fl *filler) leftZero(field scan.Field, t types.Type) diag.Diag {
+	typ := types.TypeString(t, qualifierFor(nil))
+	d := diag.Warningf(field.Pos, "kanna-fixture cannot fill %s, and the zero value it leaves breaks the rules (field %s)",
+		typ, field.Name)
+	var hints []string
+	if n, ok := types.Unalias(t).(*types.Named); ok && nameable(n) {
+		name := n.Obj().Name()
+		hints = append(hints, fmt.Sprintf("write the fixture of %s by hand, func %s() %s in package %s, which the "+
+			"fixtures then call", name, name, typ, fl.dest))
+	}
+	hints = append(hints, `tag the field fake:"skip" to leave it zero without a warning, and set it where it matters`)
+	return d.WithHints(hints...)
 }
 
 // rest returns the rules of the level after a dive.

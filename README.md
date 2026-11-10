@@ -208,6 +208,16 @@ rule asks for, `email`, `url`, or `uuid`, that cannot fit within them: a UUID is
 a URL needs room for its number beside `@example.com` or `https://example.com/`. A format the name of the field alone
 asks for gives way to them, and the field is numbered without it.
 
+A value the fixture cannot fill stays zero: a struct of another package or one without a fixture, an array, an
+interface, a channel, or a func. Where that breaks the rules, the field's own or those of the struct's fields,
+generation warns at the field and names the [fixture to write by hand](#fixtures-written-by-hand):
+
+```console
+./model.go:12:2: warning: kanna-fixture cannot fill rules.Inner, and the zero value it leaves breaks the rules (field In)
+  write the fixture of Inner by hand, func Inner() rules.Inner in package fixture, which the fixtures then call
+  tag the field fake:"skip" to leave it zero without a warning, and set it where it matters
+```
+
 ## The fake tag
 
 The `fake` tag takes [gofakeit's own syntax](https://github.com/brianvoe/gofakeit#struct), the tag `gofakeit.Struct`
@@ -289,6 +299,9 @@ func User(setters ...func(*model.User)) model.User {
 |------------------------------|--------------------------------------------------------------------------------------------------|
 | a struct, but a value type   | `func T() model.T`, or `func T(setters ...func(*model.T)) model.T`, as a generated fixture is      |
 | any other named type         | `func T() model.T`, or `func T(f *gofakeit.Faker) model.T` for the faker of the fixture calling it |
+
+This is also the way to fill a type kanna-fixture cannot, such as a struct of another package:
+`func Inner() rules.Inner` is called for every field of it, behind a pointer or in a slice too.
 
 A struct with a fixture written by hand gets no generated fixture, and the others call this one instead, whether or not
 it is marked `//kanna:fixture skip`. Its faker is seeded as for a field tagged `fake`, with the number and the type of

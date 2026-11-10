@@ -493,6 +493,8 @@ type Person struct {
 	Rate   float64 `+"`"+`fake:"{float64range:0.5,1.5}" validate:"lt=1"`+"`"+`
 	Name   string  `+"`"+`fake:"{firstname}" validate:"max=3"`+"`"+`
 	Gone   string  `+"`"+`fake:"skip" validate:"required"`+"`"+`
+	Zip    string  `+"`"+`fake:"zz" validate:"pattern=^a"`+"`"+`
+	Match  string  `+"`"+`fake:"ab" validate:"pattern=^a"`+"`"+`
 }
 `)
 
@@ -510,6 +512,7 @@ type Person struct {
 		`test.go:15:2: warning: fake tag "{number:1,3}" makes some values that validate:"ne=2" rejects (field Except)`,
 		`test.go:16:2: warning: fake tag "{float64range:0.5,1.5}" makes some values that validate:"lt=1" ` +
 			`rejects (field Rate)`,
+		`test.go:19:2: warning: fake tag "zz" is a value that validate:"pattern=^a" rejects (field Zip)`,
 	}
 	if !slices.Equal(diags, want) {
 		t.Errorf("diagnostics =\n\t%s\nwant\n\t%s", strings.Join(diags, "\n\t"), strings.Join(want, "\n\t"))
@@ -823,5 +826,70 @@ func TestKebab(t *testing.T) {
 		if got := gen.FillField(name, types.Typ[types.String], ""); got != `fmt.Sprintf("`+want+`-%d", n)` {
 			t.Errorf("%s fills as %s, want it named %s", name, got, want)
 		}
+	}
+}
+
+// A value the fixture cannot fill is left zero, and where its rules reject
+// that, the field is warned about, with how to fill it instead.
+func TestFill_ZeroBreakingRules(t *testing.T) {
+	t.Parallel()
+
+	_, diags := fill(t, `package model
+
+//kanna:fixture skip
+type Inner struct {
+	Zip string `+"`"+`validate:"required,len=7"`+"`"+`
+}
+
+//kanna:fixture skip
+type Loose struct {
+	Note string
+	Opt  string `+"`"+`validate:"omitempty,len=7"`+"`"+`
+	Tags []string
+}
+
+//kanna:fixture skip
+type Box[T any] struct{ V T }
+
+type Outer struct {
+	In     Inner      `+"`"+`validate:"required"`+"`"+`
+	PIn    *Inner     `+"`"+`validate:"required"`+"`"+`
+	Ins    []Inner    `+"`"+`validate:"required"`+"`"+`
+	Plain  Inner
+	Arr    [3]string  `+"`"+`validate:"dive,required"`+"`"+`
+	Any    any        `+"`"+`validate:"required"`+"`"+`
+	Fn     func()     `+"`"+`validate:"required"`+"`"+`
+	Gen    Box[int]   `+"`"+`validate:"required"`+"`"+`
+	Skip   Inner      `+"`"+`fake:"skip"`+"`"+`
+	Opt    *Inner
+	OptIn  Inner      `+"`"+`validate:"omitempty"`+"`"+`
+	Free   Loose
+	PFree  *Loose     `+"`"+`validate:"required"`+"`"+`
+	Ar     [2]int
+	Ch     chan int
+}
+`)
+
+	hand := func(name, typ string) string {
+		return "\n  write the fixture of " + name + " by hand, func " + name + "() " + typ +
+			" in package fixture, which the fixtures then call"
+	}
+	const skip = "\n  tag the field fake:\"skip\" to leave it zero without a warning, and set it where it matters"
+	warn := func(line, typ, field string) string {
+		return "test.go:" + line + ":2: warning: kanna-fixture cannot fill " + typ +
+			", and the zero value it leaves breaks the rules (field " + field + ")"
+	}
+	want := []string{
+		warn("19", "model.Inner", "In") + hand("Inner", "model.Inner") + skip,
+		warn("20", "model.Inner", "PIn") + hand("Inner", "model.Inner") + skip,
+		warn("21", "model.Inner", "Ins") + hand("Inner", "model.Inner") + skip,
+		warn("22", "model.Inner", "Plain") + hand("Inner", "model.Inner") + skip,
+		warn("23", "[3]string", "Arr") + skip,
+		warn("24", "any", "Any") + skip,
+		warn("25", "func()", "Fn") + skip,
+		warn("26", "model.Box[int]", "Gen") + hand("Box", "model.Box[int]") + skip,
+	}
+	if !slices.Equal(diags, want) {
+		t.Errorf("diagnostics =\n\t%s\nwant\n\t%s", strings.Join(diags, "\n\t"), strings.Join(want, "\n\t"))
 	}
 }

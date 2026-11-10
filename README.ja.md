@@ -183,6 +183,14 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 
 ルールは満たすために読み取るもので、チェックするためのものではありません。go-playground の `alphanum` のような kanna-fixture が知らないルールは、入れた値が満たさないことがあるので、生成時にそのフィールドで警告し、`fake` タグを求めます。`uuid4|uuid` のような選択肢では、知っているほうを満たします。`omitempty`、`omitnil`、`omitzero` は通る値を増やすだけなので、何もしません。map は空で埋めるので、map の長さのルールも同じように警告します。パターンは番号では満たせない唯一のルールで、gofakeit はすべての正規表現から値を生成できるわけではありません。生成した値が正規表現にマッチしない場合や、`min`、`max`、`len` の範囲に収まらない場合は、生成時に警告を出し、`fake` タグを求めます。ルールが求める形式（`email`、`url`、`uuid`）がこれらの範囲に収まらない場合も同じです。UUID の長さは 36 文字で、アドレスや URL には `@example.com` や `https://example.com/` のほかに番号を入れる余地が必要です。フィールドの名前だけが求める形式は範囲に譲り、その形式なしの番号で埋めます。
 
+フィクスチャが埋められない値はゼロ値のままです。ほかのパッケージの構造体やフィクスチャのない構造体、配列、インターフェース、チャネル、関数がそうです。そのゼロ値がルール（フィールド自身のルールか、構造体のフィールドのルール）に反するときは、生成時にそのフィールドで警告し、[手で書くフィクスチャ](#手で書くフィクスチャ)を示します:
+
+```console
+./model.go:12:2: warning: kanna-fixture cannot fill rules.Inner, and the zero value it leaves breaks the rules (field In)
+  write the fixture of Inner by hand, func Inner() rules.Inner in package fixture, which the fixtures then call
+  tag the field fake:"skip" to leave it zero without a warning, and set it where it matters
+```
+
 ## fake タグ
 
 `fake` タグは、`gofakeit.Struct` が読むタグと同じ [gofakeit 自身の構文](https://github.com/brianvoe/gofakeit#struct)を取ります。現実的な値や、ルールでは表せない形式が欲しいフィールドに使います:
@@ -247,6 +255,8 @@ func User(setters ...func(*model.User)) model.User {
 |---|---|
 | 構造体（値オブジェクトを除く） | `func T() model.T`、または生成されるフィクスチャと同じ `func T(setters ...func(*model.T)) model.T` |
 | そのほかの名前付き型 | `func T() model.T`、または呼び出すフィクスチャの faker を受け取る `func T(f *gofakeit.Faker) model.T` |
+
+ほかのパッケージの構造体のように、kanna-fixture が埋められない型も、この方法で埋めます。`func Inner() rules.Inner` を書けば、その型のフィールドに、ポインタやスライスの中のものも含めて、それを呼びます。
 
 フィクスチャを手で書いた構造体には、フィクスチャが生成されず、ほかのフィクスチャは、`//kanna:fixture skip` が付いているかどうかによらず、この関数を呼びます。faker は、`fake` タグのフィールドと同じく、呼び出すフィクスチャの番号と型をシードにしたものです。そのため、3 番目に作った User は、毎回同じニックネームになります。この関数が作る値は一意ではありません。一意でなければならないときは、自分で数えてください:
 
