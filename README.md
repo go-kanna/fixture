@@ -122,6 +122,9 @@ u := fixture.User(member, func(u *model.User) { u.Age = 70 })
 The fixtures import the model, so tests in other packages and the model's external tests (`package model_test`) can
 use them; the model's internal tests cannot, as that would be an import cycle.
 
+With two or more kanna generators, run them with [`go tool kanna gen`](https://github.com/go-kanna/kanna), which runs
+them in the order they need.
+
 ## Values
 
 Every call takes the next number n of its type, starting at 1, and each field takes the first rule that matches:
@@ -153,6 +156,11 @@ fixtures made before; a test that asserts on one sets it.
 
 The numbers count within one process. Test binaries that share a database each make their own `email-1@example.com`,
 so give each package a schema or a transaction of its own, or set the unique fields.
+
+kanna-fixture does not read the `orm` tags of [kanna-orm](https://github.com/go-kanna/orm), so a model of it is filled
+like any other: an ID marked `orm:",default"` gets its number, though Insert leaves it for the database to assign, and
+so does a foreign key, though no row it refers to was inserted. Where the database is to assign the ID, set it to zero
+with a setter, and set a foreign key to the ID of the row it refers to.
 
 A pointer stays nil and a slice stays nil, because absent is a value worth keeping: a fixture with a `Nickname` would
 erase the difference between a user who has one and a user who does not. `required` fills them.
@@ -201,6 +209,9 @@ of the field's type that holds it, where one does: `model.StatusClosed` for `one
 `Type` of `rule=Type` is read as kanna-validator reads it: a bare name is a type of the struct's package, and `pkg.Type`
 one of the package the struct's file imports as `pkg`, as `_` if nothing else uses it.
 
+A field `eqfield` holds equal to another is copied from it before the setters run, so a setter that changes the other
+field has to change this one too.
+
 The rules are read to be satisfied, not checked. A rule kanna-fixture does not know, such as go-playground's `alphanum`,
 may be broken by the value it fills, so generation warns at the field and asks for a `fake` tag, and asks too whether a
 rule it knows was meant where the name is close to one, as `requird` is; of alternatives such as `uuid4|uuid`, the one
@@ -237,14 +248,18 @@ reads, for a field that wants a realistic value or a format the rules do not des
 
 A string field takes any template. A numeric field takes the numeric ones (`{number}`, `{intrange}`, `{uintrange}`,
 `{float32range}`, `{float64range}`, and `{price}`) with a range that fits it; a `time.Time` takes `{date}`, and a UUID
-`{uuid}`. A number or a bool also takes a value as it stands, such as `fake:"42"`, and a named type converts what its
-kind takes. A pointer is set to point to the value, though it would otherwise stay nil. The rules of the field's
-`validate` tag are not applied: the template is the value asked for. Where what it makes is known before it runs, a
-range of numbers or a value as it stands, generation warns when the rules reject it, always or for some of the numbers.
+`{uuid}`. `{date}` makes a time down to the nanosecond, in years from 1900 on, which a database may round or not hold,
+so one read back from it is not equal; leave such a field untagged, for whole seconds past 2000, or write its fixture by
+hand. A number or a bool also takes a value as it stands, such as `fake:"42"`, and a named type converts what its kind
+takes. A pointer is set to point to the value, though it would otherwise stay nil. The rules of the field's `validate`
+tag are not applied: the template is the value asked for. Where what it makes is known before it runs, a range of
+numbers or a value as it stands, generation warns when the rules reject it, always or for some of the numbers.
 `fake:"skip"` leaves the field zero whatever its rules say, as the way to leave a field the fixture cannot fill.
 
 A tagged field is made by a faker seeded with the fixture's number and its type, so the third User made has the same
-name on every run, whatever the fixtures of other types do. Its values are not unique: leave a unique column untagged.
+name on every run, whatever the fixtures of other types do. The same, that is, for one version of gofakeit: another may
+make other values from a template, so a test that needs a value of its own sets it with a setter. Its values are not
+unique: leave a unique column untagged.
 
 gofakeit returns a template it does not understand as the value itself, so kanna-fixture checks every template while
 generating, against the gofakeit the module requires:
@@ -307,6 +322,10 @@ func User(setters ...func(*model.User)) model.User {
 
 This is also the way to fill a type kanna-fixture cannot, such as a struct of another package:
 `func Inner() rules.Inner` is called for every field of it, behind a pointer or in a slice too.
+
+A fixture written by hand is called by the fixtures of its destination alone. Where the fixtures of two models go into
+two destinations, such as `internal/model/fixture` and `internal/api/fixture`, and both fill a field of the type, write
+it in each.
 
 A struct with a fixture written by hand gets no generated fixture, and the others call this one instead, whether or not
 it is marked `//kanna:fixture skip`. Its faker is seeded as for a field tagged `fake`, with the number and the type of
