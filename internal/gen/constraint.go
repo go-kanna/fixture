@@ -7,6 +7,7 @@ import (
 	"iter"
 	"math"
 	"reflect"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -366,7 +367,8 @@ func (r *reader) rulesOut(v constant.Value) bool {
 
 // admits reports whether the rules let v, a number or a string, through, as
 // far as kanna-fixture reads them: required, the bounds, the length, eq, oneof,
-// and ne. A format, a pattern, or a rule it does not know may still reject v.
+// ne, and a pattern that compiles. A format or a rule it does not know may
+// still reject v.
 func (r *reader) admits(v constant.Value) bool {
 	switch {
 	case r.optional && isZero(v):
@@ -374,9 +376,10 @@ func (r *reader) admits(v constant.Value) bool {
 	case r.rulesOut(v):
 		return false
 	case v.Kind() == constant.String:
-		n := utf8.RuneCountInString(constant.StringVal(v))
+		s := constant.StringVal(v)
+		n := utf8.RuneCountInString(s)
 		return n >= r.w.minLen && (r.w.maxLen < 0 || n <= r.w.maxLen) &&
-			(len(r.w.choices) == 0 || slices.Contains(r.w.choices, constant.StringVal(v)))
+			(len(r.w.choices) == 0 || slices.Contains(r.w.choices, s)) && matches(r.w.pattern, s)
 	case v.Kind() == constant.Bool:
 		return true
 	}
@@ -445,6 +448,80 @@ func (r *reader) keepsRest(low, high constant.Value, integer bool) bool {
 		highOK = integer && r.upper.under(constant.MakeInt64(-1)) || !integer && constant.Sign(r.upper.value) == 0
 	}
 	return lowOK && highOK
+}
+
+// matches reports whether s matches pattern, which matches anything when it is
+// empty or does not compile: the validator reports that.
+func matches(pattern, s string) bool {
+	re, err := regexp.Compile(pattern)
+	return pattern == "" || err != nil || re.MatchString(s)
+}
+
+// rejectsZero reports whether the zero value of t breaks the rules of wants,
+// the rules of t and of its elements after each dive, or the validate tags of
+// the fields of a struct, which the Validate of its type checks, and so those
+// of a struct or an array it holds by value. What a pointer, slice, or map
+// points to or holds is not there in the zero value to break anything.
+func rejectsZero(t types.Type, wants []want) bool {
+	w := want{maxLen: -1}
+	if len(wants) > 0 {
+		w = wants[0]
+	}
+	switch {
+	case w.rules != nil && w.rules.optional:
+		return false
+	case w.required:
+		return true
+	}
+
+	switch u := t.Underlying().(type) {
+	case *types.Basic:
+		if w.rules == nil {
+			return false
+		}
+		if u.Info()&types.IsString != 0 && w.format != "" {
+			// "" is no address, URL, or UUID.
+			return true
+		}
+		zero := zeroOf(u)
+		if zero == nil {
+			return false
+		}
+		// required is judged above, as w has it: a pointer it is read through
+		// takes it.
+		r := *w.rules
+		r.w.required = false
+		return !r.admits(zero)
+	case *types.Slice, *types.Map:
+		return w.minLen > 0
+	case *types.Array:
+		if n := int(u.Len()); n < w.minLen || w.maxLen >= 0 && n > w.maxLen {
+			return true
+		}
+		return rejectsZero(u.Elem(), rest(wants))
+	case *types.Struct:
+		for i := range u.NumFields() {
+			f := u.Field(i)
+			if rejectsZero(f.Type(), wantsOf(reflect.StructTag(u.Tag(i)), f.Type())) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// zeroOf returns the zero value of a basic type, or nil for one the rules
+// cannot bound, such as a complex number.
+func zeroOf(b *types.Basic) constant.Value {
+	switch info := b.Info(); {
+	case info&types.IsString != 0:
+		return constant.MakeString("")
+	case info&types.IsBoolean != 0:
+		return constant.MakeBool(false)
+	case info&(types.IsInteger|types.IsFloat) != 0:
+		return constant.MakeInt64(0)
+	}
+	return nil
 }
 
 func maxValue(a, b constant.Value) constant.Value {

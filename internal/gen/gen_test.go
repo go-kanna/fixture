@@ -339,6 +339,36 @@ func User() model.User {
 	}
 }
 
+// A struct of another package has no fixture to call, so a field of it is left
+// zero, which is warned about where its rules reject that, until the fixture of
+// the type is written by hand.
+func TestCommand_ZeroOfAnotherPackage(t *testing.T) {
+	t.Parallel()
+
+	dir := writeModule(t, map[string]string{
+		"rules/rules.go": "package rules\n\ntype Inner struct {\n\tZip string `validate:\"required,len=7\"`\n}\n",
+		"model/model.go": "package model\n\nimport \"example.com/app/rules\"\n\n" +
+			"type Outer struct {\n\tIn rules.Inner `validate:\"required\"`\n}\n",
+	})
+	model := filepath.Join(dir, "model")
+	code, _, stderr := run(t, model)
+	want := "model.go:6:2: warning: kanna-fixture cannot fill rules.Inner, and the zero value it leaves breaks the " +
+		"rules (field In)\n  write the fixture of Inner by hand, func Inner() rules.Inner in package fixture, which the " +
+		"fixtures then call\n"
+	if code != cli.ExitOK || !strings.Contains(stderr, want) {
+		t.Fatalf("run = %d, stderr %q; want success with %q", code, stderr, want)
+	}
+
+	writeFile(t, filepath.Join(model, "fixture", "inner.go"), "package fixture\n\nimport \"example.com/app/rules\"\n\n"+
+		"func Inner() rules.Inner { return rules.Inner{Zip: \"1000001\"} }\n")
+	if code, stdout, stderr := run(t, model); code != cli.ExitOK || stdout != "" || stderr != "" {
+		t.Fatalf("run = %d, stdout %q, stderr %q; want success in silence", code, stdout, stderr)
+	}
+	if got := readFile(t, filepath.Join(model, "fixture", "fixture_gen.go")); !strings.Contains(got, "In: Inner(),") {
+		t.Errorf("fixture_gen.go does not call the fixture of Inner written by hand:\n%s", got)
+	}
+}
+
 func TestCommand_NoStruct(t *testing.T) {
 	t.Parallel()
 

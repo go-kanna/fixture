@@ -35,7 +35,9 @@ func emit(
 ) (*gofile.File, []diag.Diag) {
 	f := gofile.New(generator, destPath, destName)
 	f.Reserve(slices.Sorted(maps.Keys(declared))...)
-	fl := &filler{imports: f, fset: fset, targets: make(map[*types.TypeName]bool, len(targets)), hand: hand}
+	fl := &filler{
+		imports: f, fset: fset, targets: make(map[*types.TypeName]bool, len(targets)), hand: hand, dest: destName,
+	}
 
 	var (
 		diags     []diag.Diag
