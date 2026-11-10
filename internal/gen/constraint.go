@@ -273,10 +273,13 @@ func (r *reader) add(name, param string) {
 	case "eqfield":
 		r.w.field = param
 	case "oneof":
-		if r.shape == shapeString {
-			r.w.choices = choices(param)
-		} else {
-			r.equal = choices(param)
+		values, ok := choices(param)
+		switch {
+		case !ok:
+		case r.shape == shapeString:
+			r.w.choices = values
+		default:
+			r.equal = values
 		}
 	case "min", "max", "len", "eq", "ne", "gt", "gte", "lt", "lte":
 		switch r.shape {
@@ -720,21 +723,26 @@ func (r *reader) above(v constant.Value) (constant.Value, bool) {
 	return mid, constant.Compare(mid, token.GTR, v)
 }
 
-// choices splits the options of oneof, which are separated by spaces, unless
-// an option is quoted in single quotes.
-func choices(param string) []string {
+// oneOfValue matches a value of oneof: one quoted in single quotes, which may
+// hold spaces, or a run of anything but spaces.
+var oneOfValue = regexp.MustCompile(`'[^']*'|\S+`)
+
+// choices splits the values of oneof as kanna-validator does, and removes their
+// quotes. It reports false for a quote that opens or closes no value, which
+// kanna-validator reports.
+func choices(param string) ([]string, bool) {
 	var out []string
-	for rest := strings.TrimSpace(param); rest != ""; rest = strings.TrimSpace(rest) {
-		if quoted, after, ok := strings.Cut(rest[1:], "'"); rest[0] == '\'' && ok {
-			out = append(out, quoted)
-			rest = after
-			continue
+	for _, v := range oneOfValue.FindAllString(param, -1) {
+		if rest, ok := strings.CutPrefix(v, "'"); ok {
+			if v, ok = strings.CutSuffix(rest, "'"); !ok {
+				return nil, false
+			}
+		} else if strings.Contains(v, "'") {
+			return nil, false
 		}
-		var option string
-		option, rest, _ = strings.Cut(rest, " ")
-		out = append(out, option)
+		out = append(out, v)
 	}
-	return out
+	return out, true
 }
 
 // parseNumber reads a number as a rule writes it, such as -5 or 0.5, or returns
