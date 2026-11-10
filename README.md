@@ -195,6 +195,9 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 | `rule=Type`, which only kanna-validator has        | the first constant of an enum, or what a field of a value type holds, read through its accessor          |
 | `dive`                                             | the rules after it, for each element made                                                                 |
 
+A value the rules fix, by `eq`, `oneof`, or bounds that leave one integer, is written as the first exported constant
+of the field's type that holds it, where one does: `model.StatusClosed` for `oneof=closed open`.
+
 `Type` of `rule=Type` is read as kanna-validator reads it: a bare name is a type of the struct's package, and `pkg.Type`
 one of the package the struct's file imports as `pkg`, as `_` if nothing else uses it.
 

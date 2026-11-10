@@ -559,6 +559,11 @@ func (fl *filler) value(s scan.Struct, t types.Type, wants []want, name string) 
 	}
 
 	b, ok := t.Underlying().(*types.Basic)
+	if ok {
+		if e, ok := fl.constantOf(t, fixedValueOf(w, b)); ok {
+			return e, true
+		}
+	}
 	switch {
 	case !ok:
 		return expr{zero: fl.breaks(t, wants)}, false
@@ -573,6 +578,36 @@ func (fl *filler) value(s scan.Struct, t types.Type, wants []want, name string) 
 		return fl.convert(expr{text: fl.n, typ: types.Typ[types.Int64], usesN: true}, t), true
 	case b.Kind() == types.Bool && w.required:
 		return expr{text: "true"}, true
+	}
+	return expr{}, false
+}
+
+// fixedValueOf returns the one value the rules w fix for a value of kind b: the
+// first choice of a string, or the exact value of a number, or nil.
+func fixedValueOf(w want, b *types.Basic) constant.Value {
+	switch {
+	case b.Info()&types.IsString != 0 && len(w.choices) > 0:
+		return constant.MakeString(w.choices[0])
+	case b.Info()&(types.IsInteger|types.IsFloat) != 0 && w.exact != nil:
+		return w.exact
+	case b.Info()&types.IsInteger != 0 && w.low != nil && w.high != nil && constant.Compare(w.low, token.EQL, w.high):
+		return w.low
+	}
+	return nil
+}
+
+// constantOf returns the first exported constant declared of t, a named type,
+// that holds v, so that a value the rules fix is written as the model writes
+// it: model.StatusClosed rather than "closed".
+func (fl *filler) constantOf(t types.Type, v constant.Value) (expr, bool) {
+	named, ok := types.Unalias(t).(*types.Named)
+	if v == nil || !ok || named.Obj().Pkg() == nil {
+		return expr{}, false
+	}
+	for _, c := range enumtype.Constants(named, fl.fset) {
+		if c.Exported() && constant.Compare(c.Val(), token.EQL, v) {
+			return expr{text: fl.imports.Qualifier(c.Pkg()) + "." + c.Name(), typ: t}, true
+		}
 	}
 	return expr{}, false
 }

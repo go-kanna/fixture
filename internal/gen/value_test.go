@@ -267,6 +267,61 @@ type SignUp struct {
 	}
 }
 
+// A value the rules fix is written as the constant of its type that holds it,
+// the first exported one declared, and as a literal where none does.
+func TestFill_ConstantsOfFixedValues(t *testing.T) {
+	t.Parallel()
+
+	got, diags := fill(t, `package model
+
+type Status string
+
+const (
+	StatusOpen   Status = "open"
+	StatusClosed Status = "closed"
+	statusGone   Status = "gone"
+)
+
+type Level int
+
+const (
+	LevelLow Level = iota + 1
+	LevelHigh
+	LevelDefault = LevelHigh
+)
+
+type Ratio float64
+
+const Half Ratio = 0.5
+
+type Ticket struct {
+	State   Status `+"`"+`validate:"oneof=closed open"`+"`"+`
+	Gone    Status `+"`"+`validate:"oneof=gone"`+"`"+`
+	Unknown Status `+"`"+`validate:"eq=draft"`+"`"+`
+	Level   Level  `+"`"+`validate:"oneof=2"`+"`"+`
+	Same    Level  `+"`"+`validate:"gte=1,lte=1"`+"`"+`
+	Range   Level  `+"`"+`validate:"gte=1,lte=2"`+"`"+`
+	Ratio   Ratio  `+"`"+`validate:"eq=0.5"`+"`"+`
+	Plain   string `+"`"+`validate:"oneof=open"`+"`"+`
+}
+`)
+
+	checkFill(t, got, "Ticket", []string{
+		"State: model.StatusClosed",
+		`Gone: "gone"`,
+		`Unknown: "draft"`,
+		"Level: model.LevelHigh",
+		"Same: model.LevelLow",
+		"Range: model.Level(1 + (n-1)%2)",
+		"Ratio: model.Half",
+		`Plain: "open"`,
+		"uses n",
+	})
+	if len(diags) > 0 {
+		t.Errorf("diagnostics = %q, want none", diags)
+	}
+}
+
 // A float keeps within its bounds as its type holds it, compared both with the
 // bound converted to that type and with the bound as written, and the fields
 // whose type holds no value within them are warned about.
