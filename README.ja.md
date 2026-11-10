@@ -176,7 +176,7 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 | `eqfield=Field` | 指定したフィールドの値 |
 | `email`、`url`、`uuid` | その形式の値。`min` と `max` の範囲内で番号を付ける: `len=19` なら `em-0001@example.com` |
 | `pattern=regexp`（kanna-validator にのみある） | gofakeit が正規表現から生成する文字列 |
-| `rule=Type`（kanna-validator にのみある） | enum なら最初の定数、値オブジェクトならその型の名前のフィールドが保持するはずの値 |
+| `rule=Type`（kanna-validator にのみある） | enum なら最初の定数、値オブジェクトならその型のフィールドに入る値をアクセサで読んだもの |
 | `dive` | `dive` より後のルールを、作られた各要素に適用 |
 
 `rule=Type` の `Type` は、kanna-validator と同じように読みます。修飾なしの名前は構造体のパッケージの型、`pkg.Type` は構造体のファイルが `pkg` として import している（ほかで使わなければ `_` で）パッケージの型です。
@@ -229,7 +229,7 @@ $ go generate ./...
 
 `-exclude` は同じことをコマンドラインから行います。sqlc が生成するモデルのように、ソースを自分で書かないパッケージのためのものです。パッケージが宣言していない名前を指定すると警告が出ます。
 
-`//kanna:value` が付いた構造体にもフィクスチャは生成されず、何も報告されません。これは [kanna-value](https://github.com/go-kanna/value) の値オブジェクトで、唯一のフィールドは非公開であり、値はコンストラクタを通して作られるからです。このような型のフィールドは、型と同じ名前のフィールドに入る値をそのコンストラクタに渡して作られます。`Email` なら `orPanic(model.NewEmail(fmt.Sprintf("email-%d@example.com", n)))` です。型のルールが値を拒否すると、フィクスチャは panic し、代わりに書くもの（下の手で書くフィクスチャ）を示します。ルールは型自身のコードなので、実行するまで分からないからです。ゼロ値のままにしたいフィールドには `fake:"skip"` を付けてください。
+`//kanna:value` が付いた構造体にもフィクスチャは生成されず、何も報告されません。これは [kanna-value](https://github.com/go-kanna/value) の値オブジェクトで、唯一のフィールドは非公開であり、値はコンストラクタを通して作られるからです。このような型のフィールドは、型と同じ名前のフィールドに入る値をそのコンストラクタに渡して作られます。`Email` なら `orPanic(model.NewEmail(fmt.Sprintf("email-%d@example.com", n)))` です。型のルールが値を拒否すると、フィクスチャは panic し、代わりに書くもの（下の手で書くフィクスチャ）を示します。ルールは型自身のコードなので、実行するまで分からないからです。ゼロ値のままにしたいフィールドには `fake:"skip"` を付けてください。`rule=Type` でその型のルールに従うフィールドには、同じ値をアクセサで読んで入れます: `orPanic(model.NewEmail(…)).String()`。
 
 ### 手で書くフィクスチャ
 

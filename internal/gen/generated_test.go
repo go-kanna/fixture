@@ -128,6 +128,25 @@ func TestGenerated_ValueTypeRejected(t *testing.T) {
 	fixture.Tenure()
 }
 
+// A field held to the rule of a value type gets what a field of the type holds,
+// so the constructor rejects a guess the rule breaks there too.
+func TestGenerated_RuleOfValueType(t *testing.T) {
+	t.Parallel()
+
+	if h := fixture.Profile().Nick; h == "" || strings.ContainsAny(h, "0123456789") {
+		t.Errorf("Nick = %q, want what the function written by hand made", h)
+	}
+
+	defer func() {
+		want := `kanna-fixture: model.Since rejects the value guessed for it: since: rejected; ` +
+			`write func Since() model.Since in package fixture for its fixtures, or tag the field fake:"skip"`
+		if got := recover(); got != want {
+			t.Errorf("panic = %v, want %q", got, want)
+		}
+	}()
+	fixture.Term()
+}
+
 // A fixture written by hand is the one the generated fixtures call.
 func TestGenerated_FixtureWrittenByHand(t *testing.T) {
 	t.Parallel()

@@ -257,23 +257,31 @@ func unkept(field scan.Field, wants []want) []diag.Diag {
 }
 
 // ruled works out a value of type t that passes the rule of the type w.rule
-// names: the first constant of an enum, or what a field named after a value
-// type would hold, converted to t. It reports false for a rule it cannot keep,
-// which unkeptRules warns about.
+// names: the first constant of an enum, or the value a field of a value type
+// would hold, read back through its accessor and converted to t. It reports
+// false for a rule it cannot keep, which unkeptRules warns about.
 func (fl *filler) ruled(s scan.Struct, t types.Type, w want) (expr, bool) {
 	named, err := ruleType(s, w.rule)
 	if err != nil {
 		return expr{}, false
 	}
 	if v, ok := valuetype.Of(named); ok && v.Constructor != nil {
-		if e, ok := fl.written(named); ok {
-			e.text += "." + v.Accessor + "()"
-			e.typ = v.Held
-			return fl.convert(e, t), true
-		}
 		w.rule = ""
-		e, ok := fl.value(s, v.Held, []want{w}, named.Obj().Name())
-		return fl.convert(e, t), ok
+		e, ok := fl.written(named)
+		switch {
+		case ok:
+		case named.Obj().Exported():
+			if e, ok = fl.valueType(s, v, w); !ok {
+				return expr{}, false
+			}
+		default:
+			// The fixtures cannot call the constructor of an unexported type.
+			e, ok = fl.value(s, v.Held, []want{w}, named.Obj().Name())
+			return fl.convert(e, t), ok
+		}
+		e.text += "." + v.Accessor + "()"
+		e.typ = v.Held
+		return fl.convert(e, t), true
 	}
 	if _, ok := enumtype.Of(named); ok {
 		if c := firstConstant(fl.fset, named); c != nil {

@@ -342,8 +342,9 @@ type Item struct {
 
 // rule= of kanna-validator holds a field to the rule of a type, named as the
 // struct's file imports it: an enum gives its first constant, and a value type
-// what a field named after it would hold. A type whose rule the fixture cannot
-// tell is warned about.
+// what a field of it holds, read through its accessor, so that its constructor
+// rejects a guess its rule breaks. A type whose rule the fixture cannot tell is
+// warned about.
 func TestFill_Rule(t *testing.T) {
 	t.Parallel()
 
@@ -370,6 +371,12 @@ func (d Deadline) Time() time.Time { return d.t }
 
 func NewDeadline(t time.Time) (Deadline, error) { return Deadline{t: t}, nil }
 
+type Slug struct{ s string }
+
+func (s Slug) String() string { return s.s }
+
+func NewSlug(s string) (Slug, error) { return Slug{s: s}, nil }
+
 type Past struct{}
 
 func (Past) Validate(time.Time) error { return nil }
@@ -379,6 +386,7 @@ type Task struct {
 	States []string   `+"`"+`validate:"min=1,dive,rule=Status"`+"`"+`
 	Due    time.Time  `+"`"+`validate:"rule=Deadline"`+"`"+`
 	Done   *time.Time `+"`"+`validate:"required,rule=Deadline"`+"`"+`
+	Slug   string     `+"`"+`validate:"required,max=20,rule=Slug"`+"`"+`
 	When   time.Time  `+"`"+`validate:"rule=Past"`+"`"+`
 	Link   string     `+"`"+`validate:"rule=url.URL"`+"`"+`
 	Other  string     `+"`"+`validate:"rule=model.Status"`+"`"+`
@@ -388,19 +396,20 @@ type Task struct {
 	checkFill(t, got, "Task", []string{
 		`State: string(model.StatusActive)`,
 		`States: []string{string(model.StatusActive)}`,
-		"Due: time.Date(2000, time.January, 1, 0, 0, int(n), 0, time.UTC)",
-		"Done: new(time.Date(2000, time.January, 1, 0, 0, int(n), 0, time.UTC))",
+		"Due: orPanic(model.NewDeadline(time.Date(2000, time.January, 1, 0, 0, int(n), 0, time.UTC))).Time()",
+		"Done: new(orPanic(model.NewDeadline(time.Date(2000, time.January, 1, 0, 0, int(n), 0, time.UTC))).Time())",
+		`Slug: orPanic(model.NewSlug(fmt.Sprintf("slug-%d", n))).String()`,
 		"When: time.Date(2000, time.January, 1, 0, 0, int(n), 0, time.UTC)",
 		`Link: fmt.Sprintf("link-%d", n)`,
 		`Other: fmt.Sprintf("other-%d", n)`,
 		"uses n",
 	})
 	want := []string{
-		"test.go:33:2: warning: kanna-fixture cannot tell what passes rule=Past, which is neither an enum nor " +
+		"test.go:40:2: warning: kanna-fixture cannot tell what passes rule=Past, which is neither an enum nor " +
 			"a value type; give the field a fake tag (field When)",
-		"test.go:34:2: warning: kanna-fixture cannot tell what passes rule=url.URL, which is neither an enum nor " +
+		"test.go:41:2: warning: kanna-fixture cannot tell what passes rule=url.URL, which is neither an enum nor " +
 			"a value type; give the field a fake tag (field Link)",
-		"test.go:35:2: warning: kanna-fixture cannot read rule=model.Status: the file imports no package named model; " +
+		"test.go:42:2: warning: kanna-fixture cannot read rule=model.Status: the file imports no package named model; " +
 			"give the field a fake tag (field Other)",
 	}
 	if !slices.Equal(diags, want) {
