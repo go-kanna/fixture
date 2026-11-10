@@ -38,6 +38,10 @@ type fakeValue struct {
 // tagError is a mistake in a tag, with a hint on what to write instead.
 type tagError struct {
 	msg, hint string
+
+	// byHand reports a type no template fills, whose fixture is written by
+	// hand instead.
+	byHand bool
 }
 
 func (e *tagError) Error() string { return e.msg }
@@ -131,11 +135,13 @@ func fakeFor(s string, calls []call, t types.Type) (fakeValue, error) {
 		}
 		return fakeValue{}, cannotFill(s, t, "a bool takes true or false")
 	}
-	return fakeValue{}, cannotFill(s, t, "")
+	err := cannotFill(s, t, "")
+	err.byHand = true
+	return fakeValue{}, err
 }
 
 // cannotFill says that the template s makes no value of type t.
-func cannotFill(s string, t types.Type, hint string) error {
+func cannotFill(s string, t types.Type, hint string) *tagError {
 	name := types.TypeString(t, (*types.Package).Name)
 	return &tagError{msg: fmt.Sprintf("fake tag %q cannot fill %s", s, name), hint: hint}
 }

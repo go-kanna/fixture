@@ -20,6 +20,7 @@ import (
 	"github.com/go-kanna/internal/enumtype"
 	"github.com/go-kanna/internal/qualifier"
 	"github.com/go-kanna/internal/scan"
+	"github.com/go-kanna/internal/suggest"
 	"github.com/go-kanna/internal/valuetype"
 )
 
@@ -112,8 +113,13 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 		fv, faked, err := fakeOf(field.Tag, field.Type)
 		if err != nil {
 			d := diag.Errorf(field.Pos, "%s (field %s)", err, field.Name)
-			if te, ok := errors.AsType[*tagError](err); ok && te.hint != "" {
-				d = d.WithHints(te.hint)
+			if te, ok := errors.AsType[*tagError](err); ok {
+				if te.hint != "" {
+					d = d.WithHints(te.hint)
+				}
+				if te.byHand {
+					d = d.WithHints(fl.fakeless(deref(field.Type))...)
+				}
 			}
 			diags = append(diags, d)
 			continue
@@ -227,7 +233,18 @@ func unkept(field scan.Field, wants []want) []diag.Diag {
 			t, _ = elemOf(t)
 		}
 		for _, rule := range w.unknown {
-			warn(fmt.Sprintf("kanna-fixture does not know %s, so the value it fills may break it", rule))
+			msg := fmt.Sprintf("kanna-fixture does not know %s, so the value it fills may break it", rule)
+			name, _, _ := strings.Cut(rule, "=")
+			if known, ok := suggest.Closest(name, knownRules); ok {
+				diags = append(diags, diag.Warningf(field.Pos, "%s (field %s)", msg, field.Name).WithHints(
+					fmt.Sprintf("did you mean %q?", known),
+					"give the field a fake tag if it is a rule of the validator"))
+				continue
+			}
+			warn(msg)
+		}
+		if w.unheld {
+			warn(fmt.Sprintf("no %s keeps within the bounds the rules set", types.TypeString(deref(t).Underlying(), nil)))
 		}
 		if _, isMap := deref(t).Underlying().(*types.Map); isMap && w.minLen > 0 {
 			warn("an empty map does not fit within the length the rules set")
@@ -556,6 +573,11 @@ func (fl *filler) value(s scan.Struct, t types.Type, wants []want, name string) 
 	}
 
 	b, ok := t.Underlying().(*types.Basic)
+	if ok {
+		if e, ok := fl.constantOf(t, fixedValueOf(w, b)); ok {
+			return e, true
+		}
+	}
 	switch {
 	case !ok:
 		return expr{zero: fl.breaks(t, wants)}, false
@@ -565,11 +587,41 @@ func (fl *filler) value(s scan.Struct, t types.Type, wants []want, name string) 
 		return fl.integer(t, b, w), true
 	case b.Info()&types.IsFloat != 0:
 		if w.exact != nil {
-			return expr{text: floatLiteral(w.exact)}, true
+			return expr{text: floatLiteral(w.exact, b)}, true
 		}
 		return fl.convert(expr{text: fl.n, typ: types.Typ[types.Int64], usesN: true}, t), true
 	case b.Kind() == types.Bool && w.required:
 		return expr{text: "true"}, true
+	}
+	return expr{}, false
+}
+
+// fixedValueOf returns the one value the rules w fix for a value of kind b: the
+// first choice of a string, or the exact value of a number, or nil.
+func fixedValueOf(w want, b *types.Basic) constant.Value {
+	switch {
+	case b.Info()&types.IsString != 0 && len(w.choices) > 0:
+		return constant.MakeString(w.choices[0])
+	case b.Info()&(types.IsInteger|types.IsFloat) != 0 && w.exact != nil:
+		return w.exact
+	case b.Info()&types.IsInteger != 0 && w.low != nil && w.high != nil && constant.Compare(w.low, token.EQL, w.high):
+		return w.low
+	}
+	return nil
+}
+
+// constantOf returns the first exported constant declared of t, a named type,
+// that holds v, so that a value the rules fix is written as the model writes
+// it: model.StatusClosed rather than "closed".
+func (fl *filler) constantOf(t types.Type, v constant.Value) (expr, bool) {
+	named, ok := types.Unalias(t).(*types.Named)
+	if v == nil || !ok || named.Obj().Pkg() == nil {
+		return expr{}, false
+	}
+	for _, c := range enumtype.Constants(named, fl.fset) {
+		if c.Exported() && constant.Compare(c.Val(), token.EQL, v) {
+			return expr{text: fl.imports.Qualifier(c.Pkg()) + "." + c.Name(), typ: t}, true
+		}
 	}
 	return expr{}, false
 }
@@ -594,13 +646,41 @@ func (fl *filler) leftZero(field scan.Field, t types.Type) diag.Diag {
 	d := diag.Warningf(field.Pos, "kanna-fixture cannot fill %s, and the zero value it leaves breaks the rules (field %s)",
 		typ, field.Name)
 	var hints []string
-	if n, ok := types.Unalias(t).(*types.Named); ok && nameable(n) {
-		name := n.Obj().Name()
-		hints = append(hints, fmt.Sprintf("write the fixture of %s by hand, func %s() %s in package %s, which the "+
-			"fixtures then call", name, name, typ, fl.dest))
+	if hint, ok := fl.byHand(t, false); ok {
+		hints = append(hints, hint+", which the fixtures then call")
 	}
 	hints = append(hints, `tag the field fake:"skip" to leave it zero without a warning, and set it where it matters`)
 	return d.WithHints(hints...)
+}
+
+// fakeless says how to fill a field of type t, which no fake tag fills: by the
+// fixture of t, generated or written by hand.
+func (fl *filler) fakeless(t types.Type) []string {
+	if n, ok := types.Unalias(t).(*types.Named); ok && fl.targets[n.Obj()] {
+		return []string{fmt.Sprintf("drop the fake tag: the fixture of %s fills the field", n.Obj().Name())}
+	}
+	if hint, ok := fl.byHand(t, true); ok {
+		return []string{hint + ", and drop the fake tag"}
+	}
+	return nil
+}
+
+// byHand says how to write the fixture of t by hand, for a type the fixtures
+// can name. With faker set, it takes the faker, unless t is a struct other than
+// a value type of kanna-value, whose fixture cannot.
+func (fl *filler) byHand(t types.Type, faker bool) (string, bool) {
+	n, ok := types.Unalias(t).(*types.Named)
+	if !ok || !nameable(n) {
+		return "", false
+	}
+	name, typ := n.Obj().Name(), types.TypeString(t, qualifierFor(nil))
+	params := ""
+	_, isStruct := n.Underlying().(*types.Struct)
+	if _, isValue := valuetype.Of(n); faker && (!isStruct || isValue) {
+		params = "f *gofakeit.Faker"
+	}
+	return fmt.Sprintf("write the fixture of %s by hand, func %s(%s) %s in package %s",
+		name, name, params, typ, fl.dest), true
 }
 
 // rest returns the rules of the level after a dive.
@@ -911,11 +991,16 @@ func maxOf(b *types.Basic) int64 {
 	return math.MaxInt64
 }
 
-// floatLiteral spells v as the generated code writes a float: in full, where
+// floatLiteral spells v as the generated code writes a float of kind b: in
+// the fewest digits that make the same float of that kind, where
 // constant.Value.String rounds to six digits, which could cross a bound.
-func floatLiteral(v constant.Value) string {
+func floatLiteral(v constant.Value, b *types.Basic) string {
 	f, _ := constant.Float64Val(v)
-	return strconv.FormatFloat(f, 'g', -1, 64)
+	bits := 64
+	if b.Kind() == types.Float32 {
+		bits = 32
+	}
+	return strconv.FormatFloat(f, 'g', -1, bits)
 }
 
 // nameable reports whether a package other than the one declaring t can spell
