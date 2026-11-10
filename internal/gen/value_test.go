@@ -267,6 +267,45 @@ type SignUp struct {
 	}
 }
 
+// A float keeps within its bounds as its type holds it, compared both with the
+// bound converted to that type and with the bound as written, and the fields
+// whose type holds no value within them are warned about.
+func TestFill_FloatPrecision(t *testing.T) {
+	t.Parallel()
+
+	got, diags := fill(t, `package model
+
+type Ratio float32
+
+type Reading struct {
+	Big    float32 `+"`"+`validate:"gt=16777216"`+"`"+`
+	Under  float32 `+"`"+`validate:"lt=16777216"`+"`"+`
+	Tenth  float32 `+"`"+`validate:"lte=0.1"`+"`"+`
+	Half   float32 `+"`"+`validate:"gte=0.5"`+"`"+`
+	Ratio  Ratio   `+"`"+`validate:"gt=16777216"`+"`"+`
+	Wide   float64 `+"`"+`validate:"gt=9007199254740992"`+"`"+`
+	Narrow float32 `+"`"+`validate:"gt=16777216,lt=16777217"`+"`"+`
+}
+`)
+
+	checkFill(t, got, "Reading", []string{
+		"Big: 1.6777218e+07",
+		"Under: 1.6777215e+07",
+		"Tenth: 0.099999994",
+		"Half: 0.5",
+		"Ratio: 1.6777218e+07",
+		"Wide: 9.007199254740994e+15",
+		"Narrow: float32(n)",
+		"uses n",
+	})
+	want := []string{
+		"test.go:12:2: warning: no float32 keeps within the bounds the rules set; give the field a fake tag (field Narrow)",
+	}
+	if !slices.Equal(diags, want) {
+		t.Errorf("diagnostics = %q, want %q", diags, want)
+	}
+}
+
 // A copy of a field that copies another comes after that copy, whatever the
 // order of the fields, so that the chain ends at the same value. A cycle has
 // nothing to copy, and leaves its fields zero.

@@ -229,6 +229,9 @@ func unkept(field scan.Field, wants []want) []diag.Diag {
 		for _, rule := range w.unknown {
 			warn(fmt.Sprintf("kanna-fixture does not know %s, so the value it fills may break it", rule))
 		}
+		if w.unheld {
+			warn(fmt.Sprintf("no %s keeps within the bounds the rules set", types.TypeString(deref(t).Underlying(), nil)))
+		}
 		if _, isMap := deref(t).Underlying().(*types.Map); isMap && w.minLen > 0 {
 			warn("an empty map does not fit within the length the rules set")
 		}
@@ -565,7 +568,7 @@ func (fl *filler) value(s scan.Struct, t types.Type, wants []want, name string) 
 		return fl.integer(t, b, w), true
 	case b.Info()&types.IsFloat != 0:
 		if w.exact != nil {
-			return expr{text: floatLiteral(w.exact)}, true
+			return expr{text: floatLiteral(w.exact, b)}, true
 		}
 		return fl.convert(expr{text: fl.n, typ: types.Typ[types.Int64], usesN: true}, t), true
 	case b.Kind() == types.Bool && w.required:
@@ -911,11 +914,16 @@ func maxOf(b *types.Basic) int64 {
 	return math.MaxInt64
 }
 
-// floatLiteral spells v as the generated code writes a float: in full, where
+// floatLiteral spells v as the generated code writes a float of kind b: in
+// the fewest digits that make the same float of that kind, where
 // constant.Value.String rounds to six digits, which could cross a bound.
-func floatLiteral(v constant.Value) string {
+func floatLiteral(v constant.Value, b *types.Basic) string {
 	f, _ := constant.Float64Val(v)
-	return strconv.FormatFloat(f, 'g', -1, 64)
+	bits := 64
+	if b.Kind() == types.Float32 {
+		bits = 32
+	}
+	return strconv.FormatFloat(f, 'g', -1, bits)
 }
 
 // nameable reports whether a package other than the one declaring t can spell

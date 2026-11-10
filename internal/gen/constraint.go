@@ -42,6 +42,10 @@ type want struct {
 	low, high, exact constant.Value
 	skip             []int64
 
+	// unheld reports a float whose type holds no value within its bounds near
+	// the one they ask for.
+	unheld bool
+
 	field   string // eqfield: the field whose value it copies
 	format  string // email, url, or uuid
 	pattern string
@@ -708,8 +712,59 @@ func (r *reader) float(b *types.Basic) {
 		v = r.lowest(one, nil)
 	}
 	if v != nil && fits(v, b) {
-		r.w.exact = v
+		r.w.exact, r.w.unheld = r.held(v, b)
 	}
+}
+
+// held returns v, or the nearest float of type b to it within the bounds where
+// that type rounds v onto or past one, and false where a few steps find none.
+// kanna-validator compares the field with the bound converted to its type, and
+// go-playground the field, as a float64, with the bound read as a float64, so
+// the value has to keep within both: float32(16777217) is 16777216, which
+// gt=16777216 rejects.
+func (r *reader) held(v constant.Value, b *types.Basic) (constant.Value, bool) {
+	f32 := b.Kind() == types.Float32
+	round := func(v constant.Value, f32 bool) constant.Value {
+		f, _ := constant.Float64Val(v)
+		if f32 {
+			f = float64(float32(f))
+		}
+		return constant.MakeFloat64(f)
+	}
+	next := func(f constant.Value, up bool) constant.Value {
+		x, _ := constant.Float64Val(f)
+		to := math.Inf(-1)
+		if up {
+			to = math.Inf(1)
+		}
+		if f32 {
+			return constant.MakeFloat64(float64(math.Nextafter32(float32(x), float32(to))))
+		}
+		return constant.MakeFloat64(math.Nextafter(x, to))
+	}
+	within := func(f constant.Value, b bound, check func(bound, constant.Value) bool) bool {
+		return b.value == nil || check(bound{value: round(b.value, false), open: b.open}, f) &&
+			check(bound{value: round(b.value, f32), open: b.open}, f)
+	}
+	low := func(f constant.Value) bool { return !within(f, r.lower, bound.over) }
+	high := func(f constant.Value) bool { return !within(f, r.upper, bound.under) }
+
+	f := round(v, f32)
+	if !low(f) && !high(f) {
+		return v, false
+	}
+	for range 4 {
+		switch {
+		case low(f):
+			f = next(f, true)
+		case high(f):
+			f = next(f, false)
+		}
+	}
+	if low(f) || high(f) || r.rulesOut(f) {
+		return nil, true
+	}
+	return f, false
 }
 
 // above returns the value above v by 1, or by half of what is left below the
