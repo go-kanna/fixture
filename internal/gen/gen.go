@@ -3,12 +3,14 @@ package gen
 import (
 	"flag"
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/token"
 	"go/types"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/go-kanna/internal/cli"
@@ -91,6 +93,9 @@ func run(dir string, cfg config, patterns []string) ([]output.Change, []diag.Dia
 	}
 
 	path := filepath.Join(dest, outputFile)
+	if d, ok := foreign(path, pkg); ok {
+		return nil, []diag.Diag{d}
+	}
 	hand := handWritten(set, dest)
 	found, diags := targets(set.Fset, scan.AllStructs([]*packages.Package{pkg}), cfg.exclude)
 	diags = append(diags, unplaced(set.Fset, scan.Types([]*packages.Package{pkg}))...)
@@ -225,6 +230,74 @@ func source(set packages.Set, patterns []string, dest string) (*packages.Package
 func generated(path string) bool {
 	f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.PackageClauseOnly|parser.ParseComments)
 	return err == nil && ast.IsGenerated(f)
+}
+
+// foreign tells whether path is a file generated with the fixtures of another
+// package than pkg, which a run for pkg would overwrite. A fixture is told by
+// its signature: it is named after the struct it returns.
+func foreign(path string, pkg *packages.Package) (diag.Diag, bool) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, path, nil, parser.ParseComments|parser.SkipObjectResolution)
+	if err != nil || !ast.IsGenerated(f) {
+		return diag.Diag{}, false
+	}
+	seen := make(map[string]bool)
+	for _, decl := range f.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil || fn.Type.Results == nil || len(fn.Type.Results.List) != 1 {
+			continue
+		}
+		sel, ok := fn.Type.Results.List[0].Type.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != fn.Name.Name {
+			continue
+		}
+		q, ok := sel.X.(*ast.Ident)
+		if !ok || seen[q.Name] {
+			continue
+		}
+		seen[q.Name] = true
+		if !names(f, filepath.Dir(path), q.Name, pkg) {
+			return diag.Errorf(fset.Position(fn.Name.Pos()),
+				"%s is the fixture of %s.%s, of another package, which a run for %s would overwrite",
+				fn.Name.Name, q.Name, sel.Sel.Name, pkg.PkgPath).
+				WithHints("give each package a -destination of its own",
+					"remove the file if that package no longer generates here"), true
+		}
+	}
+	return diag.Diag{}, false
+}
+
+// names reports whether q, a qualifier in f, the file in dir, names pkg. An
+// import without a name of its own goes by the name its package had when f was
+// written, which pkg may have changed since: q names pkg then unless another
+// such import goes by q.
+func names(f *ast.File, dir, q string, pkg *packages.Package) bool {
+	var (
+		imported bool
+		others   []string
+	)
+	for _, spec := range f.Imports {
+		path, _ := strconv.Unquote(spec.Path.Value)
+		switch {
+		case spec.Name != nil:
+			if spec.Name.Name == q {
+				return path == pkg.PkgPath
+			}
+		case path == pkg.PkgPath:
+			imported = true
+		default:
+			others = append(others, path)
+		}
+	}
+	if !imported || q == pkg.Name {
+		return imported
+	}
+	ctxt := build.Default
+	ctxt.Dir = dir
+	return !slices.ContainsFunc(others, func(path string) bool {
+		p, err := ctxt.Import(path, dir, 0)
+		return err == nil && p.Name == q
+	})
 }
 
 // importPath returns the import path of the package in dir, from the module
