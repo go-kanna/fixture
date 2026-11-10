@@ -99,7 +99,9 @@ func run(dir string, cfg config, patterns []string) ([]output.Change, []diag.Dia
 	hand := handWritten(set, dest)
 	found, diags := targets(set.Fset, scan.AllStructs([]*packages.Package{pkg}), cfg.exclude)
 	diags = append(diags, unplaced(set.Fset, scan.Types([]*packages.Package{pkg}))...)
-	diags = append(diags, directive.Loose(directive.Lines(set.Fset, pkg.Syntax), directiveKey)...)
+	lines := directive.Lines(set.Fset, pkg.Syntax)
+	diags = append(diags, directive.Loose(lines, directiveKey)...)
+	diags = append(diags, directive.Misplaced(lines, pkg.Types, directive.StructType, directiveKey)...)
 	if diag.HasErrors(diags) {
 		return nil, packages.Stopped(deferred, diags, set.Pending(fixtures(dest, found, hand)))
 	}

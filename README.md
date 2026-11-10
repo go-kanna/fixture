@@ -283,6 +283,9 @@ one by the next `go generate`.
 |------------------------|-------------------------------------------|
 | `//kanna:fixture skip` | do not generate a fixture for this struct |
 
+The directive goes right above a struct type. Above any other declaration, such as `type Role string`, a type alias, or
+a function, nothing reads it, so it is an error.
+
 `-exclude` does the same from the command line, for a package whose source you do not write, such as the models sqlc
 generates. A name it lists that the package does not declare gets a warning.
 

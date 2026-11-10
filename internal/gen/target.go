@@ -85,10 +85,10 @@ func targets(fset *token.FileSet, structs []scan.Struct, exclude []string) ([]sc
 	return found, append(diags, unknownExcludes(exclude, exported)...)
 }
 
-// unplaced warns about a //kanna:fixture on a type of decls that gets no
-// fixture, whatever the line says: one that is no struct, or an unexported one,
+// unplaced warns about a //kanna:fixture on an unexported struct of decls,
 // which the fixtures cannot name from the package they live in. targets reads
-// the line on the rest.
+// the line on an exported struct, and directive.Misplaced stops one on a type
+// that is no struct.
 func unplaced(fset *token.FileSet, decls []scan.Type) []diag.Diag {
 	var diags []diag.Diag
 	for _, t := range decls {
@@ -97,15 +97,12 @@ func unplaced(fset *token.FileSet, decls []scan.Type) []diag.Diag {
 			continue
 		}
 		d, ds := directive.Find(fset, t.Doc, directiveKey)
-		if diags = append(diags, ds...); !d.Found {
+		if diags = append(diags, ds...); !d.Found || !isStruct {
 			continue
 		}
-		why := "only a struct gets a fixture"
-		if isStruct {
-			why = "an unexported struct gets none, as the fixtures live in another package"
-		}
-		diags = append(diags, diag.Warningf(d.Pos, "//kanna:%s on %s does nothing: %s", directiveKey, t.Name, why).
-			WithHints("remove it"))
+		diags = append(diags, diag.Warningf(d.Pos,
+			"//kanna:%s on %s does nothing: an unexported struct gets none, as the fixtures live in another package",
+			directiveKey, t.Name).WithHints("remove it"))
 	}
 	return diags
 }
