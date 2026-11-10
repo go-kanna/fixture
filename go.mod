@@ -1,8 +1,6 @@
 module github.com/go-kanna/fixture
 
-go 1.26.0
-
-toolchain go1.26.9
+go 1.27.0
 
 require (
 	github.com/brianvoe/gofakeit/v7 v7.18.1

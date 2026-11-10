@@ -12,7 +12,7 @@ tool (
 require (
 	github.com/brianvoe/gofakeit/v7 v7.18.1
 	github.com/go-kanna/validator v0.0.27
-	github.com/go-kanna/value v0.0.12
+	github.com/go-kanna/value v0.0.18
 	github.com/google/uuid v1.6.0
 )
 
