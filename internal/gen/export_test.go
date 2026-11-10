@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-kanna/internal/directive"
 	"github.com/go-kanna/internal/gofile"
 	"github.com/go-kanna/internal/packages"
 	"github.com/go-kanna/internal/scan"
@@ -20,6 +21,10 @@ import (
 func Targets(fset *token.FileSet, pkgs []*packages.Package, exclude []string) ([]string, []string) {
 	found, diags := targets(fset, scan.Structs(pkgs), exclude)
 	diags = append(diags, unplaced(fset, scan.Types(pkgs))...)
+	for _, pkg := range pkgs {
+		diags = append(diags, directive.Misplaced(directive.Lines(fset, pkg.Syntax), pkg.Types, directive.StructType,
+			directiveKey)...)
+	}
 
 	names := make([]string, len(found))
 	for i, s := range found {

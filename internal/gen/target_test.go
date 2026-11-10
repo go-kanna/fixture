@@ -309,8 +309,61 @@ type internal struct{}
 //kanna:fixture skip
 type Role string
 `,
-			diags: []string{"test.go:3:1: warning: //kanna:fixture on Role does nothing: only a struct gets a fixture\n" +
-				"  remove it"},
+			diags: []string{"test.go:3:1: error: //kanna:fixture marks a struct type, not a type other than a struct " +
+				"or an interface, so nothing reads it\n  write it right above a struct type"},
+		},
+		{
+			name: "on an interface",
+			src: `package test
+
+//kanna:fixture skip
+type Clock interface{ Now() int64 }
+`,
+			diags: []string{"test.go:3:1: error: //kanna:fixture marks a struct type, not an interface type, so nothing " +
+				"reads it\n  write it right above a struct type"},
+		},
+		{
+			name: "on an alias of a struct",
+			src: `package test
+
+//kanna:fixture skip
+type Page = struct{ N int }
+`,
+			diags: []string{"test.go:3:1: error: //kanna:fixture marks a struct type, not a type alias, so nothing reads it\n" +
+				"  write it right above a struct type"},
+		},
+		{
+			name: "on a variable",
+			src: `package test
+
+//kanna:fixture skip
+var Default struct{ N int }
+`,
+			diags: []string{"test.go:3:1: error: //kanna:fixture marks a struct type, not a variable, so nothing reads it\n" +
+				"  write it right above a struct type"},
+		},
+		{
+			name: "on a function",
+			src: `package test
+
+//kanna:fixture skip
+func New() struct{} { return struct{}{} }
+`,
+			diags: []string{"test.go:3:1: error: //kanna:fixture marks a struct type, not a function, so nothing reads it\n" +
+				"  write it right above a struct type"},
+		},
+		{
+			name: "on a field",
+			src: `package test
+
+type User struct {
+	//kanna:fixture skip
+	Name string
+}
+`,
+			names: []string{"User"},
+			diags: []string{"test.go:4:2: error: //kanna:fixture marks a struct type, not a struct field, so nothing reads " +
+				"it\n  write it right above a struct type"},
 		},
 		{
 			name: "misspelled on a type that is no struct",
