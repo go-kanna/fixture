@@ -879,7 +879,8 @@ type Slices struct {
 }
 
 // A type the fixtures cannot name from their own package leaves its field
-// zero, as an unexported field is, whatever the tags ask.
+// zero, as an unexported field is, whatever the tags ask, with a warning where
+// the rules reject that zero value, unless the field is tagged fake:"skip".
 func TestFill_Unnameable(t *testing.T) {
 	t.Parallel()
 
@@ -917,6 +918,12 @@ type Thing struct {
 	Spot   *struct{ x int }      `+"`"+`validate:"required"`+"`"+`
 	Place  *struct{ X int }      `+"`"+`validate:"required"`+"`"+`
 	Boxes  []Box[int]            `+"`"+`validate:"min=1"`+"`"+`
+	Kept   *home                 `+"`"+`validate:"required" fake:"skip"`+"`"+`
+	Free   level                 `+"`"+`validate:"gte=0"`+"`"+`
+	name   string                `+"`"+`validate:"required"`+"`"+`
+	nick   string
+	tag    string                `+"`"+`validate:"omitempty,min=2"`+"`"+`
+	code   string                `+"`"+`validate:"required" fake:"skip"`+"`"+`
 }
 `)
 
@@ -926,8 +933,71 @@ type Thing struct {
 		"Boxes: make([]model.Box[int], 1)",
 		"uses n",
 	})
-	if len(diags) > 0 {
-		t.Errorf("diagnostics = %q, want none", diags)
+	const hints = "\n  write the fixture of Thing by hand, func Thing() model.Thing in package fixture, in place of " +
+		"the generated one\n  tag the field fake:\"skip\" to leave it zero without a warning, and set it where it matters"
+	warn := func(line, what, field string) string {
+		return "test.go:" + line + ":2: warning: kanna-fixture cannot " + what +
+			", and the zero value it leaves breaks the rules (field " + field + ")" + hints
+	}
+	unnamed := func(line, typ, field string) string {
+		return warn(line, "name "+typ+" in package fixture", field)
+	}
+	want := []string{
+		unnamed("25", "*model.home", "Home"),
+		unnamed("26", "[]model.home", "Homes"),
+		unnamed("27", "map[string]model.home", "Places"),
+		unnamed("28", "[]func(chan model.level)", "Hooks"),
+		unnamed("29", "[]interface{hide()}", "Hidden"),
+		unnamed("30", "[]interface{model.hider}", "Hiders"),
+		unnamed("31", "[]model.Box[model.level]", "Boxed"),
+		unnamed("32", "*struct{x int}", "Spot"),
+		warn("37", "set unexported field name", "name"),
+	}
+	if !slices.Equal(diags, want) {
+		t.Errorf("diagnostics =\n\t%s\nwant\n\t%s", strings.Join(diags, "\n\t"), strings.Join(want, "\n\t"))
+	}
+}
+
+// The fixtures cannot call the constructor of an unexported value type, so a
+// field held to its rule by rule= gets a value made in its place, with a
+// warning that the rules of the type may reject it.
+func TestFill_UnexportedRule(t *testing.T) {
+	t.Parallel()
+
+	got, diags := fill(t, `package model
+
+type email struct{ s string }
+
+func (e email) String() string { return e.s }
+
+func newEmail(s string) (email, error) { return email{s: s}, nil }
+
+type User struct {
+	Email   string   `+"`"+`validate:"rule=email"`+"`"+`
+	Emails  []string `+"`"+`validate:"min=1,dive,rule=email"`+"`"+`
+	Backup  *string  `+"`"+`validate:"required,rule=email"`+"`"+`
+	Skipped string   `+"`"+`validate:"rule=email" fake:"skip"`+"`"+`
+	Faked   string   `+"`"+`validate:"rule=email" fake:"{email}"`+"`"+`
+}
+`)
+
+	checkFill(t, got, "User", []string{
+		`Email: fmt.Sprintf("email-%d", n)`,
+		`Emails: []string{fmt.Sprintf("email-%d", n)}`,
+		`Backup: new(fmt.Sprintf("email-%d", n))`,
+		`Faked: mustGenerate(f, "{email}")`,
+		"uses n",
+		"uses f",
+	})
+	warn := func(line, field string) string {
+		return "test.go:" + line + ":2: warning: kanna-fixture cannot call the constructor of unexported " +
+			"model.email, and the value it makes in its place may break the rules (field " + field + ")" +
+			"\n  write the fixture of User by hand, func User() model.User in package fixture, in place of the " +
+			"generated one\n  tag the field fake:\"skip\" to leave it zero without a warning, and set it where it matters"
+	}
+	want := []string{warn("10", "Email"), warn("11", "Emails"), warn("12", "Backup")}
+	if !slices.Equal(diags, want) {
+		t.Errorf("diagnostics =\n\t%s\nwant\n\t%s", strings.Join(diags, "\n\t"), strings.Join(want, "\n\t"))
 	}
 }
 
