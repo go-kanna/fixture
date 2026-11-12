@@ -30,6 +30,7 @@ func TestFake(t *testing.T) {
 		bytes = types.NewArray(types.Typ[types.Byte], 16)
 		gUUID = named("github.com/google/uuid", "UUID", bytes)
 		stdID = named("uuid", "UUID", bytes)
+		ordID = named("example.com/model", "OrderID", bytes)
 		nopkg = named("example.com/model", "Address", types.NewStruct(nil, nil))
 	)
 
@@ -167,6 +168,13 @@ func TestFake(t *testing.T) {
 		},
 		{name: "uuid", tag: `fake:"{uuid}"`, typ: gUUID, want: "UUID()"},
 		{name: "the standard library's uuid", tag: `fake:"{uuid}"`, typ: stdID, want: "UUID()"},
+		{name: "a named [16]byte", tag: `fake:"{uuid}"`, typ: ordID, want: "UUID()"},
+		{
+			name:    "a named [16]byte with a fixed uuid",
+			tag:     `fake:"00000000-0000-0000-0000-000000000000"`,
+			typ:     ordID,
+			wantErr: "a UUID takes {uuid}",
+		},
 		{
 			name:    "a fixed uuid",
 			tag:     `fake:"00000000-0000-0000-0000-000000000000"`,

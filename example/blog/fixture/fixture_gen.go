@@ -53,6 +53,24 @@ func Author(setters ...func(*blog.Author)) blog.Author {
 	return x
 }
 
+var seqComment atomic.Int64
+
+// Comment returns a new blog.Comment with every field it can fill set, then
+// applies setters in order.
+func Comment(setters ...func(*blog.Comment)) blog.Comment {
+	n := seqComment.Add(1)
+	f := gofakeit.NewFaker(rand.NewPCG(uint64(n), 0xbfa733b63de8c9a1), false)
+	x := blog.Comment{
+		ID:        blog.CommentID{0, 0, 0, 0, 0, 0, 0x40, 0, 0x80, 0, byte(n >> 40), byte(n >> 32), byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n)},
+		ArticleID: uuid.MustParse(fmt.Sprintf("00000000-0000-4000-8000-%012x", n)),
+		Body:      mustGenerate(f, "{sentence}"),
+	}
+	for _, set := range setters {
+		set(&x)
+	}
+	return x
+}
+
 // Invite returns a new blog.Invite with every field it can fill set, then
 // applies setters in order.
 func Invite(setters ...func(*blog.Invite)) blog.Invite {

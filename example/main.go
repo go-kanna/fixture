@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/google/uuid"
+
 	"github.com/go-kanna/fixture/example/blog"
 	"github.com/go-kanna/fixture/example/blog/fixture"
 )
@@ -23,6 +25,10 @@ func main() {
 		a := fixture.Article()
 		fmt.Fprintf(os.Stdout, "%s %s %q by %s <%s>\n", a.ID, a.Slug, a.Title, a.Author.Name, a.Author.Email)
 	}
+
+	// A key of a UUID type of its own is numbered the same way.
+	c := fixture.Comment()
+	fmt.Fprintf(os.Stdout, "comment %s on article %s\n", uuid.UUID(c.ID), c.ArticleID)
 
 	// A test states only what it cares about. What it leaves alone is either
 	// numbered or, like the status, the same however many fixtures came first.

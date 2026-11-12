@@ -138,6 +138,7 @@ Every call takes the next number n of its type, starting at 1, and each field ta
 | a value type of [kanna-value](https://github.com/go-kanna/value)        | its constructor's, of what a field named after it would hold            |
 | `time.Time`                                                             | n seconds past 2000-01-01T00:00:00Z                                     |
 | `uuid.UUID`, from the standard library or `github.com/google/uuid`      | a UUID ending in n: `00000000-0000-4000-8000-000000000001`              |
+| any other named `[16]byte`, such as `type OrderID uuid.UUID`            | that UUID's bytes: `model.OrderID{0, …, 0x40, …, 0x80, …, byte(n)}`     |
 | any other named type of a basic kind                                    | the value of its kind, as below, converted: `model.UserID(1)`           |
 | an integer or a float                                                   | n, wrapping around in a type too narrow for it                          |
 | a string named `…Email`, `…URL`, or `…UUID`                             | that format: `email-1@example.com`, `https://example.com/url-1`, a UUID |
@@ -256,14 +257,15 @@ reads, for a field that wants a realistic value or a format the rules do not des
 | `fake:"skip"` or `fake:"-"`       | the zero value                                                          |
 
 A string field takes any template. A numeric field takes the numeric ones (`{number}`, `{intrange}`, `{uintrange}`,
-`{float32range}`, `{float64range}`, and `{price}`) with a range that fits it; a `time.Time` takes `{date}`, and a UUID
-`{uuid}`. `{date}` makes a time down to the nanosecond, in years from 1900 on, which a database may round or not hold,
-so one read back from it is not equal; leave such a field untagged, for whole seconds past 2000, or write its fixture by
-hand. A number or a bool also takes a value as it stands, such as `fake:"42"`, and a named type converts what its kind
-takes. A pointer is set to point to the value, though it would otherwise stay nil. The rules of the field's `validate`
-tag are not applied: the template is the value asked for. Where what it makes is known before it runs, a range of
-numbers or a value as it stands, generation warns when the rules reject it, always or for some of the numbers.
-`fake:"skip"` leaves the field zero whatever its rules say, as the way to leave a field the fixture cannot fill.
+`{float32range}`, `{float64range}`, and `{price}`) with a range that fits it; a `time.Time` takes `{date}`, and a UUID,
+or any other named `[16]byte`, `{uuid}`. `{date}` makes a time down to the nanosecond, in years from 1900 on, which a
+database may round or not hold, so one read back from it is not equal; leave such a field untagged, for whole seconds
+past 2000, or write its fixture by hand. A number or a bool also takes a value as it stands, such as `fake:"42"`, and a
+named type converts what its kind takes. A pointer is set to point to the value, though it would otherwise stay nil. The
+rules of the field's `validate` tag are not applied: the template is the value asked for. Where what it makes is known
+before it runs, a range of numbers or a value as it stands, generation warns when the rules reject it, always or for
+some of the numbers. `fake:"skip"` leaves the field zero whatever its rules say, as the way to leave a field the fixture
+cannot fill.
 
 A tagged field is made by a faker seeded with the fixture's number and its type, so the third User made has the same
 name on every run, whatever the fixtures of other types do. The same, that is, for one version of gofakeit: another may

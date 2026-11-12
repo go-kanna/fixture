@@ -96,7 +96,7 @@ func fakeFor(s string, calls []call, t types.Type) (fakeValue, error) {
 			return fakeValue{method: "Date"}, nil
 		}
 		return fakeValue{}, cannotFill(s, t, "a time.Time takes {date}")
-	case isUUID(t):
+	case isUUID(t) || uuidShaped(t):
 		if only("uuid") && calls[0].params == "" {
 			return fakeValue{method: "UUID"}, nil
 		}
@@ -263,4 +263,15 @@ func isNamed(t types.Type, path, name string) bool {
 // github.com/google/uuid, which both parse with MustParse.
 func isUUID(t types.Type) bool {
 	return isNamed(t, "uuid", "UUID") || isNamed(t, "github.com/google/uuid", "UUID")
+}
+
+// uuidShaped reports whether t is a named [16]byte other than a UUID, such as
+// type OrderID uuid.UUID, which go/types cannot tell from any other [16]byte.
+func uuidShaped(t types.Type) bool {
+	n, ok := types.Unalias(t).(*types.Named)
+	if !ok || isUUID(n) {
+		return false
+	}
+	a, ok := n.Underlying().(*types.Array)
+	return ok && a.Len() == 16 && types.Identical(a.Elem(), types.Typ[types.Byte])
 }
