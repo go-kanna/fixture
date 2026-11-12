@@ -1090,6 +1090,12 @@ func TestFillField_UUID(t *testing.T) {
 	}
 
 	const numbered = `uuid.MustParse(fmt.Sprintf("00000000-0000-4000-8000-%012x", n))`
+	orderID := func(u types.Type) types.Type {
+		pkg := types.NewPackage("example.com/model", "model")
+		return types.NewNamed(types.NewTypeName(0, pkg, "OrderID", nil), u, nil)
+	}
+	const shaped = "model.OrderID{0, 0, 0, 0, 0, 0, 0x40, 0, 0x80, 0, byte(n >> 40), byte(n >> 32), " +
+		"byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n)}"
 
 	tests := []struct {
 		name string
@@ -1100,6 +1106,16 @@ func TestFillField_UUID(t *testing.T) {
 		{name: "google", typ: uuidOf("github.com/google/uuid"), want: numbered},
 		{name: "the standard library's", typ: uuidOf("uuid"), want: numbered},
 		{name: "faked", typ: uuidOf("github.com/google/uuid"), tag: `fake:"{uuid}"`, want: "uuid.MustParse(f.UUID())"},
+		{name: "a named [16]byte", typ: orderID(types.NewArray(types.Typ[types.Byte], 16)), want: shaped},
+		{name: "a named UUID", typ: orderID(uuidOf("github.com/google/uuid").Underlying()), want: shaped},
+		{
+			name: "a named [16]byte faked",
+			typ:  orderID(types.NewArray(types.Typ[types.Byte], 16)),
+			tag:  `fake:"{uuid}"`,
+			want: "model.OrderID(uuid.MustParse(f.UUID()))",
+		},
+		{name: "a named [8]byte", typ: orderID(types.NewArray(types.Typ[types.Byte], 8)), want: ""},
+		{name: "a named [16]int8", typ: orderID(types.NewArray(types.Typ[types.Int8], 16)), want: ""},
 		{name: "another array", typ: types.NewArray(types.Typ[types.Byte], 16), want: ""},
 	}
 

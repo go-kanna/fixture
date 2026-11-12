@@ -511,9 +511,13 @@ func (fl *filler) fake(fv fakeValue, t types.Type) expr {
 	switch {
 	case fv.fixed != "":
 		return expr{text: fv.fixed}
-	case fv.method == "UUID":
+	case fv.method == "UUID" && isUUID(t):
 		pkg := fl.imports.Import(namedPath(t), "uuid")
 		return expr{text: pkg + ".MustParse(" + fl.f + ".UUID())", typ: t, usesF: true}
+	case fv.method == "UUID":
+		pkg := fl.imports.Import("uuid", "uuid")
+		typ := types.TypeString(t, fl.imports.Qualifier)
+		return expr{text: typ + "(" + pkg + ".MustParse(" + fl.f + ".UUID()))", typ: t, usesF: true}
 	case fv.method == "Date":
 		return expr{text: fl.f + ".Date()", typ: t, usesF: true}
 	case fv.method != "":
@@ -753,8 +757,9 @@ func rest(wants []want) []want {
 }
 
 // named works out the value of a named type that has one of its own: one with
-// a fixture written by hand, a struct with a fixture, time.Time, a UUID, a
-// value type of kanna-value, or an enum. It reports false for any other.
+// a fixture written by hand, a struct with a fixture, time.Time, a UUID or any
+// named [16]byte, a value type of kanna-value, or an enum. It reports false for
+// any other.
 func (fl *filler) named(s scan.Struct, t *types.Named, w want) (expr, bool) {
 	if e, ok := fl.written(t); ok {
 		return e, true
@@ -784,6 +789,16 @@ func (fl *filler) named(s scan.Struct, t *types.Named, w want) (expr, bool) {
 		e.text = pkg + ".MustParse(" + e.text + ")"
 		e.typ = t
 		return e, true
+	case uuidShaped(t):
+		// The bytes of the UUID above, so that no two fixtures share a key.
+		n := fl.n
+		return expr{
+			text: fmt.Sprintf("%s{0, 0, 0, 0, 0, 0, 0x40, 0, 0x80, 0, byte(%[2]s >> 40), byte(%[2]s >> 32), "+
+				"byte(%[2]s >> 24), byte(%[2]s >> 16), byte(%[2]s >> 8), byte(%[2]s)}",
+				types.TypeString(t, fl.imports.Qualifier), n),
+			typ:   t,
+			usesN: true,
+		}, true
 	case len(w.choices) > 0 || w.exact != nil || w.low != nil:
 		// The rules of the field say which values it takes.
 		return expr{}, false

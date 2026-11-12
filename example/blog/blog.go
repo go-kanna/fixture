@@ -44,6 +44,17 @@ type Article struct {
 	DeletedAt   time.Time `fake:"skip"` // set, it would say the article is gone
 }
 
+// CommentID is a UUID of its own type, so that the key of a comment is not
+// taken for that of an article. Its fixture numbers it as it does a uuid.UUID.
+type CommentID uuid.UUID
+
+// Comment is keyed by a CommentID.
+type Comment struct {
+	ID        CommentID
+	ArticleID uuid.UUID
+	Body      string `fake:"{sentence}"`
+}
+
 // SignUp is a request kanna-validator checks. Its fixture passes as made.
 //
 //kanna:validate
