@@ -226,7 +226,7 @@ func fixedValue(fixed string) constant.Value {
 
 // unkept warns about the rules of field, wants, that the fixture cannot keep:
 // a rule it does not know or whose value it cannot read, rules no
-// time.Duration passes, a length a map is to have, which it fills empty, a
+// integer passes, a length a map is to have, which it fills empty, a
 // format no value of which fits the length the rules set, which str passes
 // over, and a pattern the faker makes values from that do not match it or do
 // not fit that length, which is cleared so that the field is numbered instead.
@@ -262,7 +262,7 @@ func unkept(field scan.Field, wants []want) []diag.Diag {
 			warn(fmt.Sprintf("kanna-fixture cannot read %s as %s, so the value it fills may break it", rule, what))
 		}
 		if w.unmet {
-			warn(fmt.Sprintf("no %s passes the rules", types.TypeString(deref(t), nil)))
+			warn(fmt.Sprintf("no %s passes the rules", types.TypeString(deref(t), (*types.Package).Name)))
 		}
 		if w.unheld {
 			warn(fmt.Sprintf("no %s keeps within the bounds the rules set", types.TypeString(deref(t).Underlying(), nil)))
