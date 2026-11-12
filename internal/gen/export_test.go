@@ -38,8 +38,8 @@ func Targets(fset *token.FileSet, pkgs []*packages.Package, exclude []string) ([
 }
 
 // Wants reads tag, a struct tag as written between backquotes, for a field of
-// type t, and spells each level as a line, such as "required len=..50" or
-// "low=18 high=130".
+// type t, and spells each level as a line, such as "required len=..50",
+// "low=18 high=130", or "unread=gte=abc".
 func Wants(tag string, t types.Type) []string {
 	wants := wantsOf(reflect.StructTag(tag), t)
 	if wants == nil {
@@ -81,6 +81,12 @@ func Wants(tag string, t types.Type) []string {
 		}
 		if w.pattern != "" {
 			parts = append(parts, "pattern="+w.pattern)
+		}
+		for _, r := range w.unread {
+			parts = append(parts, "unread="+r)
+		}
+		if w.unmet {
+			parts = append(parts, "unmet")
 		}
 		lines[i] = strings.Join(parts, " ")
 	}

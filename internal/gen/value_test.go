@@ -361,6 +361,49 @@ type Reading struct {
 	}
 }
 
+// The rules of a time.Duration are read as durations, as kanna-validator reads
+// them, and rules no duration passes, or whose value cannot be read, are warned
+// about, as is a number rule that cannot be read on another type.
+func TestFill_Durations(t *testing.T) {
+	t.Parallel()
+
+	got, diags := fill(t, `package model
+
+import "time"
+
+type Job struct {
+	Timeout time.Duration   `+"`"+`validate:"gte=1s,lt=1h"`+"`"+`
+	Backoff *time.Duration  `+"`"+`validate:"required,oneof=0 1500ms"`+"`"+`
+	Second  time.Duration   `+"`"+`validate:"eq=1s"`+"`"+`
+	Steps   []time.Duration `+"`"+`validate:"min=1,dive,gt=1m"`+"`"+`
+	Never   time.Duration   `+"`"+`validate:"gte=1h,lte=1m"`+"`"+`
+	Typo    time.Duration   `+"`"+`validate:"gte=1sec"`+"`"+`
+	Count   int             `+"`"+`validate:"lte=ten"`+"`"+`
+}
+`)
+
+	checkFill(t, got, "Job", []string{
+		"Timeout: time.Duration(1000000000 + (n-1)%3599000000000)",
+		"Backoff: new(time.Duration(1500000000))",
+		"Second: time.Second",
+		"Steps: []time.Duration{time.Duration(n + 60000000000)}",
+		"Never: time.Duration(n)",
+		"Typo: time.Duration(n)",
+		"Count: int(n)",
+		"uses n",
+	})
+	want := []string{
+		"test.go:10:2: warning: no time.Duration passes the rules; give the field a fake tag (field Never)",
+		"test.go:11:2: warning: kanna-fixture cannot read gte=1sec as a duration, so the value it fills may break it; " +
+			"give the field a fake tag (field Typo)",
+		"test.go:12:2: warning: kanna-fixture cannot read lte=ten as a number, so the value it fills may break it; " +
+			"give the field a fake tag (field Count)",
+	}
+	if !slices.Equal(diags, want) {
+		t.Errorf("diagnostics =\n\t%s\nwant\n\t%s", strings.Join(diags, "\n\t"), strings.Join(want, "\n\t"))
+	}
+}
+
 // A copy of a field that copies another comes after that copy, whatever the
 // order of the fields, so that the chain ends at the same value. A cycle has
 // nothing to copy, and leaves its fields zero.

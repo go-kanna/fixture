@@ -207,6 +207,10 @@ req := fixture.SignUp(func(r *model.SignUp) { r.Email = "nope" })
 A value the rules fix, by `eq`, `oneof`, or bounds that leave one integer, is written as the first exported constant
 of the field's type that holds it, where one does: `model.StatusClosed` for `oneof=closed open`.
 
+A `time.Duration` is bounded with durations, as kanna-validator reads them: `gte=1s,lt=1h` counts up from one second,
+and `eq=1s` gives `time.Second`. A number without a unit is read as nanoseconds, as go-playground reads it. Both
+validators take a type declared on `time.Duration` as an integer, so its rules count nanoseconds.
+
 `Type` of `rule=Type` is read as kanna-validator reads it: a bare name is a type of the struct's package, and `pkg.Type`
 one of the package the struct's file imports as `pkg`, as `_` if nothing else uses it.
 
@@ -223,6 +227,9 @@ or `len`, generation warns and asks for a `fake` tag. So it does for a format a 
 `uuid`, that cannot fit within them: a UUID is 36 characters long, and an address or a URL needs room for its number
 beside `@example.com` or `https://example.com/`. A format the name of the field alone asks for gives way to them, and
 the field is numbered without it.
+
+A rule whose value kanna-fixture cannot read, such as `max=abc`, or `gte=1sec` on a `time.Duration`, is warned about
+the same way, and so are rules no `time.Duration` passes, such as `gte=1h,lte=1m`.
 
 A value the fixture cannot fill stays zero: a struct of another package or one without a fixture, an array, an
 interface, a channel, or a func. Where that breaks the rules, the field's own or those of the struct's fields,

@@ -22,6 +22,8 @@ func TestWants(t *testing.T) {
 		ptr   = types.NewPointer(str)
 		pkg   = types.NewPackage("example.com/model", "model")
 		level = types.NewNamed(types.NewTypeName(0, pkg, "Level", nil), u8, nil)
+		dur   = types.NewNamed(types.NewTypeName(0, types.NewPackage("time", "time"), "Duration", nil), i64, nil)
+		since = types.NewNamed(types.NewTypeName(0, pkg, "Since", nil), i64, nil)
 	)
 
 	tests := []struct {
@@ -71,7 +73,7 @@ func TestWants(t *testing.T) {
 			name: "rules it does not know, or cannot read",
 			tag:  `validate:"alphanum,required_if=Kind a,max=abc,min=-1,min=2"`,
 			typ:  str,
-			want: []string{"len=2.."},
+			want: []string{"len=2.. unread=max=abc"},
 		},
 		{name: "a pointer", tag: `validate:"required,max=20"`, typ: ptr, want: []string{"required len=0..20"}},
 
@@ -80,6 +82,9 @@ func TestWants(t *testing.T) {
 		{name: "a lower bound alone", tag: `validate:"required,gt=0"`, typ: i64, want: []string{"required low=1"}},
 		{name: "an upper bound alone counts from 1", tag: `validate:"lt=10"`, typ: i, want: []string{"low=1 high=9"}},
 		{name: "an upper bound below 1", tag: `validate:"lte=-5"`, typ: i, want: []string{"exact=-5"}},
+		{name: "ne at an upper bound below 1", tag: `validate:"lte=0,ne=0,ne=-1"`, typ: i, want: []string{"exact=-2"}},
+		{name: "ne at an upper bound of 0 on unsigned", tag: `validate:"lte=0,ne=0"`, typ: u8, want: []string{""}},
+		{name: "ne at an upper bound on a duration", tag: `validate:"lte=0s,ne=0s"`, typ: dur, want: []string{"exact=-1"}},
 		{name: "a bound between integers", tag: `validate:"gt=1.5,lt=4.5"`, typ: i, want: []string{"low=2 high=4"}},
 		{name: "eq", tag: `validate:"eq=7"`, typ: i, want: []string{"exact=7"}},
 		{name: "eq written as a float", tag: `validate:"eq=1234567.0"`, typ: i, want: []string{"exact=1234567"}},
@@ -99,7 +104,14 @@ func TestWants(t *testing.T) {
 		{name: "a range the wrong way round", tag: `validate:"gte=5,lte=1"`, typ: i, want: []string{""}},
 		{name: "a bound the type cannot hold", tag: `validate:"gte=300"`, typ: u8, want: []string{""}},
 		{name: "an upper bound the type cannot hold", tag: `validate:"lte=300"`, typ: u8, want: []string{""}},
-		{name: "a bound that is not a number", tag: `validate:"gte=abc"`, typ: i, want: []string{""}},
+		{name: "a bound that is not a number", tag: `validate:"gte=abc"`, typ: i, want: []string{"unread=gte=abc"}},
+		{
+			name: "a value of oneof that is not a number",
+			tag:  `validate:"oneof=x 3"`,
+			typ:  i,
+			want: []string{"exact=3 unread=oneof=x 3"},
+		},
+		{name: "ne that is not a number", tag: `validate:"ne=x"`, typ: i, want: []string{"unread=ne=x"}},
 		{name: "a named integer", tag: `validate:"lte=200"`, typ: level, want: []string{"low=1 high=200"}},
 		{name: "eq that is not an integer", tag: `validate:"eq=1.5"`, typ: i, want: []string{""}},
 		{name: "required counts from 1", tag: `validate:"required,gte=0"`, typ: i, want: []string{"required low=1"}},
@@ -145,6 +157,55 @@ func TestWants(t *testing.T) {
 		{name: "ne below where a float counts from", tag: `validate:"ne=0"`, typ: f64, want: []string{""}},
 		{name: "a float32", tag: `validate:"gte=1.5"`, typ: f32, want: []string{"exact=1.5"}},
 		{name: "a bound a float32 cannot hold", tag: `validate:"gte=1e39"`, typ: f32, want: []string{""}},
+
+		{
+			name: "a range of durations",
+			tag:  `validate:"gte=1s,lt=1h"`,
+			typ:  dur,
+			want: []string{"low=1000000000 high=3599999999999"},
+		},
+		{
+			name: "a duration through a pointer",
+			tag:  `validate:"gt=1ms"`,
+			typ:  types.NewPointer(dur),
+			want: []string{"low=1000001"},
+		},
+		{name: "an upper bound on a duration", tag: `validate:"lte=-1m30s"`, typ: dur, want: []string{"exact=-90000000000"}},
+		{name: "eq on a duration", tag: `validate:"eq=1h30m"`, typ: dur, want: []string{"exact=5400000000000"}},
+		{
+			name: "oneof on a duration",
+			tag:  `validate:"oneof=0 500ms,required"`,
+			typ:  dur,
+			want: []string{"required exact=500000000"},
+		},
+		{name: "ne on a duration", tag: `validate:"gte=1ns,lte=3ns,ne=1ns,ne=2ns"`, typ: dur, want: []string{"exact=3"}},
+		{name: "go-playground's nanoseconds on a duration", tag: `validate:"gte=1000"`, typ: dur, want: []string{"low=1000"}},
+		{
+			name: "a duration that does not parse",
+			tag:  `validate:"gte=1x,ne=1.5"`,
+			typ:  dur,
+			want: []string{"unread=gte=1x unread=ne=1.5"},
+		},
+		{name: "durations the wrong way round", tag: `validate:"gte=1h,lt=1s"`, typ: dur, want: []string{"unmet"}},
+		{name: "a duration with no choice left", tag: `validate:"oneof=1s,ne=1s"`, typ: dur, want: []string{"unmet"}},
+		{
+			name: "a duration with nothing left",
+			tag:  `validate:"gte=1ns,lte=2ns,ne=1ns,ne=2ns"`,
+			typ:  dur,
+			want: []string{"unmet"},
+		},
+		{
+			name: "a type based on time.Duration counts nanoseconds",
+			tag:  `validate:"gte=1000"`,
+			typ:  since,
+			want: []string{"low=1000"},
+		},
+		{
+			name: "a type based on time.Duration reads no duration",
+			tag:  `validate:"gte=1s"`,
+			typ:  since,
+			want: []string{"unread=gte=1s"},
+		},
 
 		{name: "length of a slice", tag: `validate:"min=2"`, typ: types.NewSlice(str), want: []string{"len=2.."}},
 		{name: "eq on a slice is its length", tag: `validate:"eq=3"`, typ: types.NewSlice(str), want: []string{"len=3..3"}},
