@@ -59,3 +59,31 @@ func TestDeps_CodeInTheDestination(t *testing.T) {
 		t.Errorf("Packages = %q, want %q", r.Packages, want)
 	}
 }
+
+// A type that the generated code of another package will declare does not
+// resolve before that code is written, which leaves where the run writes as
+// it is.
+func TestDeps_FieldNotResolved(t *testing.T) {
+	t.Parallel()
+
+	dir := writeModule(t, map[string]string{
+		"g/g.go": "package g\n",
+		"p/p.go": "package p\n\nimport \"example.com/app/g\"\n\ntype User struct {\n\tOwner g.Owner\n\tName  string\n}\n",
+	})
+
+	code, stdout, stderr := run(t, filepath.Join(dir, "p"), "-deps")
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, stderr)
+	}
+	var r deps.Report
+	if err := json.Unmarshal([]byte(stdout), &r); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(r.Writes) != 1 || !strings.HasSuffix(r.Writes[0], filepath.Join("p", "fixture", "fixture_gen.go")) {
+		t.Errorf("Writes = %q", r.Writes)
+	}
+	if !slices.Equal(r.Declares, []string{"example.com/app/p/fixture.User"}) {
+		t.Errorf("Declares = %q", r.Declares)
+	}
+}
