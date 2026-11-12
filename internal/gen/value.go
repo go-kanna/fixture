@@ -48,6 +48,10 @@ type expr struct {
 	// zero is the type of a value it leaves zero, though the rules reject
 	// that, or nil.
 	zero types.Type
+
+	// unchecked is the unexported value type whose constructor it does not
+	// call, making a value in its place that may break its rules, or nil.
+	unchecked *types.Named
 }
 
 // assignment sets field to value.
@@ -107,6 +111,9 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 	)
 	for _, field := range s.Fields {
 		if !field.Exported || !nameable(field.Type) {
+			if d, ok := fl.unset(s, field); ok {
+				diags = append(diags, d)
+			}
 			continue
 		}
 
@@ -151,6 +158,9 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 			e, ok = fl.value(s, field.Type, wants, field.Name)
 			if e.zero != nil {
 				diags = append(diags, fl.leftZero(field, e.zero))
+			}
+			if ok && e.unchecked != nil {
+				diags = append(diags, fl.uncheckedValue(s, field, e.unchecked))
 			}
 		}
 		if !ok {
@@ -294,6 +304,7 @@ func (fl *filler) ruled(s scan.Struct, t types.Type, w want) (expr, bool) {
 		default:
 			// The fixtures cannot call the constructor of an unexported type.
 			e, ok = fl.value(s, v.Held, []want{w}, named.Obj().Name())
+			e.unchecked = named
 			return fl.convert(e, t), ok
 		}
 		e.text += "." + v.Accessor + "()"
@@ -651,6 +662,45 @@ func (fl *filler) leftZero(field scan.Field, t types.Type) diag.Diag {
 	}
 	hints = append(hints, `tag the field fake:"skip" to leave it zero without a warning, and set it where it matters`)
 	return d.WithHints(hints...)
+}
+
+// unset warns about field, which the fixture leaves zero since it cannot set an
+// unexported field or name its type, where its rules reject that zero value,
+// and says how to fill it instead. A field tagged fake:"skip" asks for the zero
+// value knowing that.
+func (fl *filler) unset(s scan.Struct, field scan.Field) (diag.Diag, bool) {
+	if fv, faked, err := fakeOf(field.Tag, field.Type); err == nil && faked && fv.skip {
+		return diag.Diag{}, false
+	}
+	if !rejectsZero(field.Type, wantsOf(field.Tag, field.Type)) {
+		return diag.Diag{}, false
+	}
+	what := "set unexported field " + field.Name
+	if field.Exported {
+		what = "name " + types.TypeString(field.Type, qualifierFor(nil)) + " in package " + fl.dest
+	}
+	d := diag.Warningf(field.Pos, "kanna-fixture cannot %s, and the zero value it leaves breaks the rules (field %s)",
+		what, field.Name)
+	return d.WithHints(fl.instead(s)...), true
+}
+
+// uncheckedValue warns about field, which the fixture fills with a value made
+// in place of one of t, an unexported value type whose constructor it cannot
+// call, so that the rules of t may reject it, and says how to fill it instead.
+func (fl *filler) uncheckedValue(s scan.Struct, field scan.Field, t *types.Named) diag.Diag {
+	d := diag.Warningf(field.Pos, "kanna-fixture cannot call the constructor of unexported %s, and the value it "+
+		"makes in its place may break the rules (field %s)", types.TypeString(t, qualifierFor(nil)), field.Name)
+	return d.WithHints(fl.instead(s)...)
+}
+
+// instead says how to fill a field of s that the generated fixture cannot: by
+// the fixture of s written by hand, or not at all.
+func (fl *filler) instead(s scan.Struct) []string {
+	var hints []string
+	if hint, ok := fl.byHand(s.Named, false); ok {
+		hints = append(hints, hint+", in place of the generated one")
+	}
+	return append(hints, `tag the field fake:"skip" to leave it zero without a warning, and set it where it matters`)
 }
 
 // fakeless says how to fill a field of type t, which no fake tag fills: by the

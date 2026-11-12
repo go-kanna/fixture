@@ -78,8 +78,8 @@ type Empty struct {
 // which stay zero as unexported fields do, beside one they can.
 type Hidden struct {
 	Level level
-	Home  *home            `validate:"required"`
-	Spot  *struct{ x int } `validate:"required"`
+	Home  *home            `validate:"required" fake:"skip"`
+	Spot  *struct{ x int } `validate:"required" fake:"skip"`
 	Place *struct{ X int } `validate:"required"`
 }
 

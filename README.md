@@ -147,7 +147,8 @@ Every call takes the next number n of its type, starting at 1, and each field ta
 
 Then [the rules of its `validate` tag](#rules) adjust the value. Unexported fields are left alone, since the fixtures
 cannot set them from their own package, and so are fields of a type they cannot name from there: an unexported type, or
-a struct type written out with an unexported field.
+a struct type written out with an unexported field. Where the zero value they keep breaks the rules, generation warns at
+the field, [as for a value the fixture cannot fill](#rules), and names the fixture of the struct to write by hand.
 
 What the number feeds is unique per type, and names its field: `title-3` in a failure is the Title of the third Article
 made. What it does not feed (constants, the first of a `oneof`, bools) is the same whichever tests ran first, so a
@@ -295,7 +296,9 @@ constructor. A field of such a type is made with that constructor, of what a fie
 `orPanic(model.NewEmail(fmt.Sprintf("email-%d@example.com", n)))` for an `Email`. A value the type's rule rejects makes
 the fixture panic, saying what to write instead: a fixture of the type written by hand, below. Only running tells, as the
 rule is the type's own code. Tag the field `fake:"skip"` to leave it zero instead. A field held to the type with
-`rule=Type` gets the same value, read through its accessor: `orPanic(model.NewEmail(…)).String()`.
+`rule=Type` gets the same value, read through its accessor: `orPanic(model.NewEmail(…)).String()`. The fixtures cannot
+call the constructor of an unexported type, so a field held to one gets the value without it, and generation warns at
+the field that the type's rule may reject it.
 
 ### Fixtures written by hand
 
