@@ -44,8 +44,8 @@ type want struct {
 	skip             []int64
 
 	// unheld reports a float whose type holds no value within its bounds near
-	// the one they ask for, and unmet a time.Duration no value of which passes
-	// its rules.
+	// the one they ask for, and unmet an integer no value of which passes its
+	// rules.
 	unheld, unmet bool
 
 	field   string // eqfield: the field whose value it copies
@@ -619,12 +619,7 @@ func (r *reader) integer(b *types.Basic) {
 			low = one
 		}
 	}
-	if low != nil && !fits(low, b) {
-		low = nil
-	}
-	if high != nil && !fits(high, b) {
-		high = nil
-	}
+	low, high = r.clip(low, b, 1), r.clip(high, b, -1)
 	if low != nil && high != nil && constant.Compare(low, token.GTR, high) {
 		r.unmet()
 		return
@@ -664,9 +659,22 @@ func (r *reader) integer(b *types.Basic) {
 	r.w.low, r.w.high = low, high
 }
 
-// unmet marks a time.Duration whose rules no value passes.
+// clip returns bound, or nil where type b cannot hold it. Such a bound rules
+// out every value of the type when its sign is beyond: 1 for a lower bound, -1
+// for an upper one, as int8 has no value from gte=200.
+func (r *reader) clip(bound constant.Value, b *types.Basic, beyond int) constant.Value {
+	if bound == nil || fits(bound, b) {
+		return bound
+	}
+	if constant.Sign(bound) == beyond {
+		r.unmet()
+	}
+	return nil
+}
+
+// unmet marks an integer whose rules no value passes.
 func (r *reader) unmet() {
-	r.w.unmet = r.duration
+	r.w.unmet = true
 }
 
 // within returns, in ascending order and once each, the values of ne from

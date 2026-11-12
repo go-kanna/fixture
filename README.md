@@ -229,7 +229,8 @@ beside `@example.com` or `https://example.com/`. A format the name of the field 
 the field is numbered without it.
 
 A rule whose value kanna-fixture cannot read, such as `max=abc`, or `gte=1sec` on a `time.Duration`, is warned about
-the same way, and so are rules no `time.Duration` passes, such as `gte=1h,lte=1m`.
+the same way, and so are rules no value of the field's type passes: `gte=200` on an `int8`, `gt=0,lt=1`, or
+`gte=1h,lte=1m` on a `time.Duration`.
 
 A value the fixture cannot fill stays zero: a struct of another package or one without a fixture, an array, an
 interface, a channel, or a func. Where that breaks the rules, the field's own or those of the struct's fields,

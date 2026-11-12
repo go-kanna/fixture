@@ -16,6 +16,7 @@ func TestWants(t *testing.T) {
 		i     = types.Typ[types.Int]
 		i64   = types.Typ[types.Int64]
 		u8    = types.Typ[types.Uint8]
+		i8    = types.Typ[types.Int8]
 		f64   = types.Typ[types.Float64]
 		f32   = types.Typ[types.Float32]
 		b     = types.Typ[types.Bool]
@@ -83,7 +84,7 @@ func TestWants(t *testing.T) {
 		{name: "an upper bound alone counts from 1", tag: `validate:"lt=10"`, typ: i, want: []string{"low=1 high=9"}},
 		{name: "an upper bound below 1", tag: `validate:"lte=-5"`, typ: i, want: []string{"exact=-5"}},
 		{name: "ne at an upper bound below 1", tag: `validate:"lte=0,ne=0,ne=-1"`, typ: i, want: []string{"exact=-2"}},
-		{name: "ne at an upper bound of 0 on unsigned", tag: `validate:"lte=0,ne=0"`, typ: u8, want: []string{""}},
+		{name: "ne at an upper bound of 0 on unsigned", tag: `validate:"lte=0,ne=0"`, typ: u8, want: []string{"unmet"}},
 		{name: "ne at an upper bound on a duration", tag: `validate:"lte=0s,ne=0s"`, typ: dur, want: []string{"exact=-1"}},
 		{name: "a bound between integers", tag: `validate:"gt=1.5,lt=4.5"`, typ: i, want: []string{"low=2 high=4"}},
 		{name: "eq", tag: `validate:"eq=7"`, typ: i, want: []string{"exact=7"}},
@@ -100,10 +101,13 @@ func TestWants(t *testing.T) {
 		},
 		{name: "ne where it counts", tag: `validate:"ne=5"`, typ: i, want: []string{"skip=5"}},
 		{name: "ne between integers", tag: `validate:"gte=1,lte=3,ne=1.5"`, typ: i, want: []string{"low=1 high=3"}},
-		{name: "ne with nothing left", tag: `validate:"gte=1,lte=1,ne=1"`, typ: i, want: []string{""}},
-		{name: "a range the wrong way round", tag: `validate:"gte=5,lte=1"`, typ: i, want: []string{""}},
-		{name: "a bound the type cannot hold", tag: `validate:"gte=300"`, typ: u8, want: []string{""}},
+		{name: "ne with nothing left", tag: `validate:"gte=1,lte=1,ne=1"`, typ: i, want: []string{"unmet"}},
+		{name: "a range the wrong way round", tag: `validate:"gte=5,lte=1"`, typ: i, want: []string{"unmet"}},
+		{name: "a bound the type cannot hold", tag: `validate:"gte=300"`, typ: u8, want: []string{"unmet"}},
 		{name: "an upper bound the type cannot hold", tag: `validate:"lte=300"`, typ: u8, want: []string{""}},
+		{name: "a lower bound below the type", tag: `validate:"gte=-300"`, typ: i8, want: []string{""}},
+		{name: "an upper bound below the type", tag: `validate:"lte=-300"`, typ: i8, want: []string{"unmet"}},
+		{name: "an open range with nothing between", tag: `validate:"gt=0,lt=1"`, typ: i, want: []string{"unmet"}},
 		{name: "a bound that is not a number", tag: `validate:"gte=abc"`, typ: i, want: []string{"unread=gte=abc"}},
 		{
 			name: "a value of oneof that is not a number",
@@ -113,7 +117,7 @@ func TestWants(t *testing.T) {
 		},
 		{name: "ne that is not a number", tag: `validate:"ne=x"`, typ: i, want: []string{"unread=ne=x"}},
 		{name: "a named integer", tag: `validate:"lte=200"`, typ: level, want: []string{"low=1 high=200"}},
-		{name: "eq that is not an integer", tag: `validate:"eq=1.5"`, typ: i, want: []string{""}},
+		{name: "eq that is not an integer", tag: `validate:"eq=1.5"`, typ: i, want: []string{"unmet"}},
 		{name: "required counts from 1", tag: `validate:"required,gte=0"`, typ: i, want: []string{"required low=1"}},
 		{
 			name: "required below 0",
@@ -122,7 +126,7 @@ func TestWants(t *testing.T) {
 			want: []string{"required low=-5 high=-1"},
 		},
 		{name: "required bounded above by 0", tag: `validate:"required,lte=0"`, typ: i, want: []string{"required exact=-1"}},
-		{name: "required below 0 on unsigned", tag: `validate:"required,lte=0"`, typ: u8, want: []string{"required"}},
+		{name: "required below 0 on unsigned", tag: `validate:"required,lte=0"`, typ: u8, want: []string{"required unmet"}},
 		{
 			name: "required passes over a choice",
 			tag:  `validate:"required,oneof=0 1"`,

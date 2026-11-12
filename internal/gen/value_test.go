@@ -404,6 +404,43 @@ type Job struct {
 	}
 }
 
+// Rules no integer of its type passes, a bound beyond the type or bounds the
+// wrong way round, are warned about, and the field is numbered as before.
+func TestFill_UnmetIntegers(t *testing.T) {
+	t.Parallel()
+
+	got, diags := fill(t, `package model
+
+type Level uint8
+
+type Gauge struct {
+	Small int8  `+"`"+`validate:"gte=200"`+"`"+`
+	Wide  int   `+"`"+`validate:"gte=10,lte=5"`+"`"+`
+	Pct   int   `+"`"+`validate:"gt=0,lt=1"`+"`"+`
+	Floor Level `+"`"+`validate:"lte=0,ne=0"`+"`"+`
+	Low   int8  `+"`"+`validate:"gte=-200,lte=5"`+"`"+`
+}
+`)
+
+	checkFill(t, got, "Gauge", []string{
+		"Small: int8(1 + (n-1)%127)",
+		"Wide: int(n)",
+		"Pct: int(n)",
+		"Floor: model.Level(1 + (n-1)%255)",
+		"Low: int8(1 + (n-1)%5)",
+		"uses n",
+	})
+	want := []string{
+		"test.go:6:2: warning: no int8 passes the rules; give the field a fake tag (field Small)",
+		"test.go:7:2: warning: no int passes the rules; give the field a fake tag (field Wide)",
+		"test.go:8:2: warning: no int passes the rules; give the field a fake tag (field Pct)",
+		"test.go:9:2: warning: no model.Level passes the rules; give the field a fake tag (field Floor)",
+	}
+	if !slices.Equal(diags, want) {
+		t.Errorf("diagnostics =\n\t%s\nwant\n\t%s", strings.Join(diags, "\n\t"), strings.Join(want, "\n\t"))
+	}
+}
+
 // A copy of a field that copies another comes after that copy, whatever the
 // order of the fields, so that the chain ends at the same value. A cycle has
 // nothing to copy, and leaves its fields zero.
