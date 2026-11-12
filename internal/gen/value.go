@@ -177,13 +177,6 @@ func (fl *filler) fill(s scan.Struct) (filled, []diag.Diag) {
 	return out, diags
 }
 
-// unkept warns about the rules of field, wants, that the fixture cannot keep:
-// a rule it does not know, a length a map is to have, which it fills empty, a
-// format no value of which fits the length the rules set, which str passes
-// over, and a pattern the faker makes values from that do not match it or do
-// not fit that length, which is cleared so that the field is numbered instead.
-// A pattern that does not compile is cleared without a word: that is for the
-// validator to report, as is a pattern or a format on what is not a string.
 // broken warns about the fake tag of field, which made fv, where the rules of
 // its validate tag reject what it makes: always, or for some of the numbers a
 // range makes. What a template of text makes is not known before it runs, and
@@ -231,6 +224,14 @@ func fixedValue(fixed string) constant.Value {
 	return parseNumber(fixed)
 }
 
+// unkept warns about the rules of field, wants, that the fixture cannot keep:
+// a rule it does not know or whose value it cannot read, rules no
+// time.Duration passes, a length a map is to have, which it fills empty, a
+// format no value of which fits the length the rules set, which str passes
+// over, and a pattern the faker makes values from that do not match it or do
+// not fit that length, which is cleared so that the field is numbered instead.
+// A pattern that does not compile is cleared without a word: that is for the
+// validator to report, as is a pattern or a format on what is not a string.
 func unkept(field scan.Field, wants []want) []diag.Diag {
 	var diags []diag.Diag
 	warn := func(msg string) {
@@ -252,6 +253,16 @@ func unkept(field scan.Field, wants []want) []diag.Diag {
 				continue
 			}
 			warn(msg)
+		}
+		for _, rule := range w.unread {
+			what := "a number"
+			if isNamed(deref(t), "time", "Duration") {
+				what = "a duration"
+			}
+			warn(fmt.Sprintf("kanna-fixture cannot read %s as %s, so the value it fills may break it", rule, what))
+		}
+		if w.unmet {
+			warn(fmt.Sprintf("no %s passes the rules", types.TypeString(deref(t), nil)))
 		}
 		if w.unheld {
 			warn(fmt.Sprintf("no %s keeps within the bounds the rules set", types.TypeString(deref(t).Underlying(), nil)))

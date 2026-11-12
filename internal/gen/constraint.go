@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -43,8 +44,9 @@ type want struct {
 	skip             []int64
 
 	// unheld reports a float whose type holds no value within its bounds near
-	// the one they ask for.
-	unheld bool
+	// the one they ask for, and unmet a time.Duration no value of which passes
+	// its rules.
+	unheld, unmet bool
 
 	field   string // eqfield: the field whose value it copies
 	format  string // email, url, or uuid
@@ -52,8 +54,9 @@ type want struct {
 	rule    string // rule=, of kanna-validator: the type whose rule it holds the value to, as written
 
 	// unknown are the rules kanna-fixture does not know, as written, which the
-	// value it fills may break.
-	unknown []string
+	// value it fills may break, and unread those whose value it cannot read,
+	// such as max=abc.
+	unknown, unread []string
 
 	// rules are the rules of the level as read, which a fake tag is held to.
 	rules *reader
@@ -75,9 +78,9 @@ func (w want) elements() int {
 //
 // The tag is read as go-playground/validator and kanna-validator read it, and
 // as leniently as possible. A rule kanna-fixture does not know is kept in
-// unknown, for a warning, and one it cannot make sense of, such as max=abc, is
-// passed over: that is the validator's to report. Of alternatives such as
-// email|url, the first it knows is taken, which satisfies them all.
+// unknown, and one whose value it cannot read, such as max=abc, in unread, for
+// a warning. Of alternatives such as email|url, the first it knows is taken,
+// which satisfies them all.
 func wantsOf(tag reflect.StructTag, t types.Type) []want {
 	s, ok := tag.Lookup(tagKey)
 	if !ok {
@@ -229,8 +232,10 @@ type reader struct {
 	// For a number: its bounds, the values eq and oneof give it, and those ne
 	// rules out; for a string, the values ne rules out.
 	lower, upper bound
-	equal        []string
-	not          []constant.Value
+	equal, not   []constant.Value
+
+	// duration reports a time.Duration, whose rules are written as durations.
+	duration bool
 
 	// optional reports omitempty, omitnil, or omitzero, which let the zero
 	// value through whatever the other rules say.
@@ -238,7 +243,7 @@ type reader struct {
 }
 
 func newReader(t types.Type) *reader {
-	return &reader{typ: t, shape: shapeOf(t), w: want{maxLen: -1}}
+	return &reader{typ: t, shape: shapeOf(t), w: want{maxLen: -1}, duration: isNamed(deref(t), "time", "Duration")}
 }
 
 // knows reports whether kanna-fixture fills a value to pass the rule name, or
@@ -282,8 +287,16 @@ func (r *reader) add(name, param string) {
 		case !ok:
 		case r.shape == shapeString:
 			r.w.choices = values
-		default:
-			r.equal = values
+		case r.shape == shapeInteger || r.shape == shapeFloat:
+			r.equal = nil
+			for _, s := range values {
+				v := r.parse(s)
+				if v == nil {
+					r.unread(name, param)
+					continue
+				}
+				r.equal = append(r.equal, v)
+			}
 		}
 	case "min", "max", "len", "eq", "ne", "gt", "gte", "lt", "lte":
 		switch r.shape {
@@ -308,7 +321,11 @@ func (r *reader) length(name, param string) {
 		return
 	}
 	n, err := strconv.Atoi(param)
-	if err != nil || n < 0 {
+	if err != nil {
+		r.unread(name, param)
+		return
+	}
+	if n < 0 {
 		return
 	}
 	switch name {
@@ -327,8 +344,9 @@ func (r *reader) length(name, param string) {
 
 // number takes in a rule on the value of a number.
 func (r *reader) number(name, param string) {
-	v := parseNumber(param)
+	v := r.parse(param)
 	if v == nil {
+		r.unread(name, param)
 		return
 	}
 	switch name {
@@ -341,9 +359,34 @@ func (r *reader) number(name, param string) {
 	case "lt":
 		r.upper = bound{value: v, open: true}
 	case "len", "eq":
-		r.equal = []string{param}
+		r.equal = []constant.Value{v}
 	case "ne":
 		r.not = append(r.not, v)
+	}
+}
+
+// parse reads the value of a rule on a number: a duration as
+// time.ParseDuration reads one, such as 1s, for a time.Duration, as
+// kanna-validator reads it, or a number, which go-playground takes as
+// nanoseconds there. It returns the nanoseconds of a duration, or nil.
+func (r *reader) parse(s string) constant.Value {
+	if r.duration {
+		if d, err := time.ParseDuration(s); err == nil {
+			return constant.MakeInt64(int64(d))
+		}
+		if v := parseNumber(s); v != nil && isInteger(v) {
+			return constant.ToInt(v)
+		}
+		return nil
+	}
+	return parseNumber(s)
+}
+
+// unread takes in a rule whose value cannot be read.
+func (r *reader) unread(name, param string) {
+	rule := name + "=" + param
+	if !slices.Contains(r.w.unread, rule) {
+		r.w.unread = append(r.w.unread, rule)
 	}
 }
 
@@ -390,10 +433,8 @@ func (r *reader) admits(v constant.Value) bool {
 	case v.Kind() == constant.Bool:
 		return true
 	}
-	return r.lower.over(v) && r.upper.under(v) && (len(r.equal) == 0 || slices.ContainsFunc(r.equal, func(s string) bool {
-		e := parseNumber(s)
-		return e != nil && constant.Compare(e, token.EQL, v)
-	}))
+	equal := func(e constant.Value) bool { return constant.Compare(e, token.EQL, v) }
+	return r.lower.over(v) && r.upper.under(v) && (len(r.equal) == 0 || slices.ContainsFunc(r.equal, equal))
 }
 
 // admitsRange reports whether the rules let through every number from low to
@@ -405,9 +446,8 @@ func (r *reader) admitsRange(low, high constant.Value, integer bool) (all, some 
 	}
 	one := constant.Compare(low, token.EQL, high)
 	if len(r.equal) > 0 {
-		some = slices.ContainsFunc(r.equal, func(s string) bool {
-			e := parseNumber(s)
-			return e != nil && inside(e) && r.admits(e)
+		some = slices.ContainsFunc(r.equal, func(e constant.Value) bool {
+			return inside(e) && r.admits(e)
 		})
 		return one && some, some
 	}
@@ -554,6 +594,8 @@ func (r *reader) integer(b *types.Basic) {
 	if len(r.equal) > 0 {
 		if v := r.choice(b); v != nil {
 			r.w.exact = constant.ToInt(v)
+		} else {
+			r.unmet()
 		}
 		return
 	}
@@ -584,12 +626,21 @@ func (r *reader) integer(b *types.Basic) {
 		high = nil
 	}
 	if low != nil && high != nil && constant.Compare(low, token.GTR, high) {
+		r.unmet()
 		return
 	}
 
 	if low == nil && high != nil {
 		if constant.Compare(high, token.LSS, one) {
-			r.w.exact = high
+			v := high
+			for r.rulesOut(v) {
+				v = constant.BinaryOp(v, token.SUB, one)
+			}
+			if fits(v, b) {
+				r.w.exact = v
+			} else {
+				r.unmet()
+			}
 			return
 		}
 		low = one
@@ -603,11 +654,19 @@ func (r *reader) integer(b *types.Basic) {
 		skip, ok := r.within(start, high)
 		if !ok || r.leavesOne(start, high, skip) {
 			r.w.exact = r.lowest(start, high)
+			if r.w.exact == nil {
+				r.unmet()
+			}
 			return
 		}
 		r.w.skip = skip
 	}
 	r.w.low, r.w.high = low, high
+}
+
+// unmet marks a time.Duration whose rules no value passes.
+func (r *reader) unmet() {
+	r.w.unmet = r.duration
 }
 
 // within returns, in ascending order and once each, the values of ne from
@@ -648,8 +707,8 @@ func (r *reader) leavesOne(start, high constant.Value, skip []int64) bool {
 // choice returns the first value eq or oneof gives that a number of type b
 // holds and that the rules do not leave out, or nil.
 func (r *reader) choice(b *types.Basic) constant.Value {
-	for _, s := range r.equal {
-		if v := parseNumber(s); v != nil && fits(v, b) && !r.rulesOut(v) {
+	for _, v := range r.equal {
+		if fits(v, b) && !r.rulesOut(v) {
 			return v
 		}
 	}
