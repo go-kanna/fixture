@@ -11,14 +11,14 @@ tool (
 
 require (
 	github.com/brianvoe/gofakeit/v7 v7.18.1
-	github.com/go-kanna/validator v0.0.27
+	github.com/go-kanna/validator v0.0.29
 	github.com/go-kanna/value v0.0.18
 	github.com/google/uuid v1.6.0
 )
 
 require (
 	github.com/go-kanna/fixture v0.0.21 // indirect
-	github.com/go-kanna/internal v0.0.32-0.20261110094330-760e419d549c // indirect
+	github.com/go-kanna/internal v0.0.33 // indirect
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/tools v0.52.0 // indirect

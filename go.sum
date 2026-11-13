@@ -1,7 +1,7 @@
 github.com/brianvoe/gofakeit/v7 v7.18.1 h1:gDjmUVe4q/xNvIGhH1Y1l+f1HLOpVUQTg4+2sFOECF4=
 github.com/brianvoe/gofakeit/v7 v7.18.1/go.mod h1:QXuPeBw164PJCzCUZVmgpgHJ3Llj49jSLVkKPMtxtxA=
-github.com/go-kanna/internal v0.0.32-0.20261110094330-760e419d549c h1:Cn6lgkAb12UFd2xxxe6I0ko7ti139VnHGHPT1aV0/qE=
-github.com/go-kanna/internal v0.0.32-0.20261110094330-760e419d549c/go.mod h1:Df477EkeFmw5w4hFNoBGUZfZJfgKJnaemuReERxK7to=
+github.com/go-kanna/internal v0.0.33 h1:c53OI5X5WQINsidsspCmY4FjjRaXCOobjGFFDlvHzzA=
+github.com/go-kanna/internal v0.0.33/go.mod h1:Df477EkeFmw5w4hFNoBGUZfZJfgKJnaemuReERxK7to=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
 golang.org/x/mod v0.42.0 h1:ICeL3t2L30ljSPHHxDnR4fqVcBt/zR2zJAb9juavmQg=

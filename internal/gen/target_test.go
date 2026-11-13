@@ -309,8 +309,8 @@ type internal struct{}
 //kanna:fixture skip
 type Role string
 `,
-			diags: []string{"test.go:3:1: error: //kanna:fixture marks a struct type, not a type other than a struct " +
-				"or an interface, so nothing reads it\n  write it right above a struct type"},
+			diags: []string{"test.go:3:1: error: //kanna:fixture marks a struct type, not a string type, so nothing " +
+				"reads it\n  write it right above a struct type"},
 		},
 		{
 			name: "on an interface",
