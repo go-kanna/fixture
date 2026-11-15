@@ -117,7 +117,7 @@ u := fixture.User(member, func(u *model.User) { u.Age = 70 })
 
 フィクスチャはモデルを import するので、他のパッケージのテストとモデルの外部テスト（`package model_test`）からは使えますが、モデルの内部テストからは使えません。import の循環になるからです。
 
-kanna の生成器を 2 つ以上使うなら、[`go tool kanna gen`](https://github.com/go-kanna/kanna) で動かしてください。必要な順に実行されます。
+kanna のジェネレータを 2 つ以上使うなら、[`go tool kanna gen`](https://github.com/go-kanna/kanna) で動かしてください。必要な順に実行されます。
 
 ## 値
 
