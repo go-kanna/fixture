@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/brianvoe/gofakeit/v7 v7.18.1
-	github.com/go-kanna/internal v0.0.33
+	github.com/go-kanna/internal v0.1.0
 	golang.org/x/mod v0.42.0
 )
 
